@@ -26,6 +26,9 @@ class State:
     def exit(self) -> None:
         """Called when this state is removed from the stack."""
 
+    def resume(self) -> None:
+        """Called when this state is uncovered by a pop (not a fresh enter)."""
+
     def handle_events(self, events: list[pygame.event.Event]) -> None:
         raise NotImplementedError
 
@@ -57,6 +60,11 @@ class StateMachine:
         """The state on top of the stack, or None if empty."""
         return self._stack[-1] if self._stack else None
 
+    @property
+    def stack(self) -> list[State]:
+        """The full state stack (bottom to top) for rendering."""
+        return list(self._stack)
+
     def push(self, name: str, params: dict | None = None) -> None:
         """Push a new state onto the stack, calling its enter()."""
         state = self._states[name]
@@ -68,9 +76,8 @@ class StateMachine:
         if self._stack:
             self._stack[-1].exit()
             self._stack.pop()
-            # Re-enter the state that is now on top
             if self._stack:
-                self._stack[-1].enter()
+                self._stack[-1].resume()
 
     def change(self, name: str, params: dict | None = None) -> None:
         """Replace the current state: pop, then push the new one."""

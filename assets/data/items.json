@@ -1,0 +1,11 @@
+{
+  "items": [
+    {
+      "id": "olive_branch",
+      "name": "Olive-Wood Branch",
+      "type": "weapon",
+      "description": "A gnarled branch from the old olive tree. Heavier than it looks.",
+      "attack_bonus": 2
+    }
+  ]
+}

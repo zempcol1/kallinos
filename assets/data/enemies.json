@@ -1,0 +1,13 @@
+{
+  "enemies": [
+    {
+      "id": "vatrachos",
+      "name": "Vátrachos",
+      "description": "A cat-sized marsh frog with unsettling amber eyes.",
+      "hp": 18,
+      "attack": 4,
+      "defense": 1,
+      "xp_reward": 10
+    }
+  ]
+}

@@ -8,6 +8,8 @@ import settings as s
 from game.state_machine import StateMachine
 from states.main_menu import MainMenu
 from states.exploration import Exploration
+from states.dialogue import Dialogue
+from states.combat import Combat
 
 
 class Game:
@@ -24,6 +26,8 @@ class Game:
         self.state_machine = StateMachine()
         self.state_machine.register("main_menu", MainMenu(self))
         self.state_machine.register("exploration", Exploration(self))
+        self.state_machine.register("dialogue", Dialogue(self))
+        self.state_machine.register("combat", Combat(self))
 
         # Start on the main menu
         self.state_machine.push("main_menu")
@@ -47,7 +51,11 @@ class Game:
 
             state.handle_events(events)
             state.update(dt)
-            state.render(self.screen)
+
+            # Render the full stack so overlay states (dialogue) draw
+            # on top of the state below them.
+            for s_state in self.state_machine.stack:
+                s_state.render(self.screen)
 
             pygame.display.flip()
 

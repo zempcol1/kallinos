@@ -1,0 +1,90 @@
+{
+  "name": "village",
+  "width": 25,
+  "height": 18,
+  "tile_size": 16,
+  "player_start": [12, 15],
+  "ground": [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0],
+    [0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,1,0,0,0,0,0,1,1,1,0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  ],
+  "objects": [
+    {"type": "house_wall",   "tile": 3, "x": 3,  "y": 2, "w": 5, "h": 3},
+    {"type": "house_roof",   "tile": 4, "x": 3,  "y": 2, "w": 5, "h": 1},
+    {"type": "house_door",   "tile": 4, "x": 5,  "y": 5, "w": 1, "h": 1},
+    {"type": "house_wall",   "tile": 3, "x": 17, "y": 2, "w": 5, "h": 3},
+    {"type": "house_roof",   "tile": 4, "x": 17, "y": 2, "w": 5, "h": 1},
+    {"type": "house_door",   "tile": 4, "x": 19, "y": 5, "w": 1, "h": 1},
+    {"type": "house_wall",   "tile": 3, "x": 3,  "y": 9, "w": 4, "h": 3},
+    {"type": "house_roof",   "tile": 4, "x": 3,  "y": 9, "w": 4, "h": 1},
+    {"type": "house_door",   "tile": 4, "x": 5,  "y": 12,"w": 1, "h": 1},
+    {"type": "house_wall",   "tile": 3, "x": 18, "y": 9, "w": 4, "h": 3},
+    {"type": "house_roof",   "tile": 4, "x": 18, "y": 9, "w": 4, "h": 1},
+    {"type": "house_door",   "tile": 4, "x": 20, "y": 12,"w": 1, "h": 1},
+    {"type": "stone_wall",   "tile": 2, "x": 10, "y": 3, "w": 5, "h": 3},
+    {"type": "house_door",   "tile": 4, "x": 12, "y": 6, "w": 1, "h": 1},
+    {"type": "tree_trunk",   "tile": 7, "x": 8,  "y": 13,"w": 1, "h": 1},
+    {"type": "tree_canopy",  "tile": 5, "x": 7,  "y": 11,"w": 3, "h": 2},
+    {"type": "tree_trunk",   "tile": 7, "x": 16, "y": 13,"w": 1, "h": 1},
+    {"type": "tree_canopy",  "tile": 5, "x": 15, "y": 11,"w": 3, "h": 2},
+    {"type": "bush",         "tile": 9, "x": 6,  "y": 7, "w": 1, "h": 1},
+    {"type": "bush",         "tile": 9, "x": 18, "y": 7, "w": 1, "h": 1},
+    {"type": "fence",        "tile": 8, "x": 10, "y": 7, "w": 5, "h": 1}
+  ],
+  "collisions": [
+    {"x": 3,  "y": 2, "w": 5, "h": 4, "note": "house_left_top"},
+    {"x": 17, "y": 2, "w": 5, "h": 4, "note": "house_right_top"},
+    {"x": 3,  "y": 9, "w": 4, "h": 4, "note": "house_left_bottom"},
+    {"x": 18, "y": 9, "w": 4, "h": 4, "note": "house_right_bottom"},
+    {"x": 10, "y": 3, "w": 5, "h": 4, "note": "temple"},
+    {"x": 8,  "y": 11,"w": 1, "h": 3, "note": "tree_left"},
+    {"x": 16, "y": 11,"w": 1, "h": 3, "note": "tree_right"},
+    {"x": 6,  "y": 7, "w": 1, "h": 1, "note": "bush_left"},
+    {"x": 18, "y": 7, "w": 1, "h": 1, "note": "bush_right"},
+    {"x": 10, "y": 7, "w": 5, "h": 1, "note": "fence_center"}
+  ],
+  "triggers": [],
+  "npcs": [
+    {
+      "id": "doros",
+      "name": "Doros",
+      "x": 11,
+      "y": 10,
+      "color": [80, 130, 200],
+      "dialogue_idle": ["The village feels different today. Did you see the soldiers at the harbor?"]
+    },
+    {
+      "id": "niko",
+      "name": "Niko",
+      "x": 14,
+      "y": 10,
+      "color": [200, 120, 80],
+      "dialogue_idle": ["I still can't believe you fought that thing with a stick! Wait till everyone hears."]
+    },
+    {
+      "id": "elder_theron",
+      "name": "Elder Theron",
+      "x": 12,
+      "y": 8,
+      "color": [180, 180, 180],
+      "dialogue_idle": ["Kallinos. Come find me at the temple. There is something you must know."]
+    }
+  ],
+  "item_pickups": []
+}

@@ -6,7 +6,10 @@ import settings as s
 
 
 class Camera:
-    """Simple camera offset that centers on a target position."""
+    """Simple camera offset that centers on a target position.
+
+    Maps smaller than the screen are centered instead of pinned top-left.
+    """
 
     def __init__(self, map_pixel_w: int, map_pixel_h: int) -> None:
         self.x = 0
@@ -16,9 +19,11 @@ class Camera:
 
     def follow(self, target_x: float, target_y: float) -> None:
         """Center the camera on the target, clamped to map edges."""
-        self.x = int(target_x - s.SCREEN_WIDTH // 2)
-        self.y = int(target_y - s.SCREEN_HEIGHT // 2)
+        self.x = self._axis(target_x, s.SCREEN_WIDTH, self._map_w)
+        self.y = self._axis(target_y, s.SCREEN_HEIGHT, self._map_h)
 
-        # Clamp
-        self.x = max(0, min(self.x, self._map_w - s.SCREEN_WIDTH))
-        self.y = max(0, min(self.y, self._map_h - s.SCREEN_HEIGHT))
+    @staticmethod
+    def _axis(target: float, screen: int, world: int) -> int:
+        if world <= screen:
+            return -(screen - world) // 2
+        return max(0, min(int(target - screen // 2), world - screen))

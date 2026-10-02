@@ -8,6 +8,7 @@ import pygame
 
 import settings as s
 from game.state_machine import State
+from ui.widgets import draw_panel, font, wrap_text
 
 if TYPE_CHECKING:
     from game.game import Game
@@ -28,18 +29,12 @@ class Dialogue(State):
         self._lines: list[tuple[str, str]] = []
         self._index = 0
         self._on_complete: str | None = None
-        self._font: pygame.font.Font | None = None
-        self._name_font: pygame.font.Font | None = None
-        self._hint_font: pygame.font.Font | None = None
 
     def enter(self, params: dict | None = None) -> None:
         params = params or {}
         self._lines = params.get("lines", [])
         self._index = 0
         self._on_complete = params.get("on_complete")
-        self._font = pygame.font.Font(None, 28)
-        self._name_font = pygame.font.Font(None, 32)
-        self._hint_font = pygame.font.Font(None, 20)
 
     def handle_events(self, events: list[pygame.event.Event]) -> None:
         for event in events:
@@ -70,46 +65,20 @@ class Dialogue(State):
 
         speaker, text = self._lines[self._index]
 
-        # Dialogue box background
         box_h = 130
-        box_y = s.SCREEN_HEIGHT - box_h - 10
-        box_rect = pygame.Rect(20, box_y, s.SCREEN_WIDTH - 40, box_h)
+        box_rect = pygame.Rect(20, s.SCREEN_HEIGHT - box_h - 10, s.SCREEN_WIDTH - 40, box_h)
+        draw_panel(surface, box_rect)
 
-        # Semi-transparent background
-        box_surf = pygame.Surface((box_rect.width, box_rect.height), pygame.SRCALPHA)
-        box_surf.fill((15, 15, 35, 230))
-        surface.blit(box_surf, box_rect)
-
-        # Border
-        pygame.draw.rect(surface, s.COLOR_ACCENT_GOLD, box_rect, 2)
-
-        # Speaker name
-        name_surf = self._name_font.render(speaker, True, s.COLOR_ACCENT_GOLD)
+        name_surf = font(32).render(speaker, True, s.COLOR_ACCENT_GOLD)
         surface.blit(name_surf, (box_rect.x + 15, box_rect.y + 10))
 
-        # Text — simple word wrap
-        words = text.split()
-        line_strs = []
-        current_line = ""
-        max_w = box_rect.width - 30
-        for word in words:
-            test = current_line + (" " if current_line else "") + word
-            if self._font.size(test)[0] > max_w:
-                line_strs.append(current_line)
-                current_line = word
-            else:
-                current_line = test
-        if current_line:
-            line_strs.append(current_line)
-
+        text_font = font(28)
         y = box_rect.y + 42
-        for line_str in line_strs[:3]:  # max 3 visible lines
-            text_surf = self._font.render(line_str, True, s.COLOR_WHITE)
-            surface.blit(text_surf, (box_rect.x + 15, y))
+        for line_str in wrap_text(text, text_font, box_rect.width - 30)[:3]:  # max 3 lines
+            surface.blit(text_font.render(line_str, True, s.COLOR_WHITE), (box_rect.x + 15, y))
             y += 26
 
-        # Hint
         hint = f"[Enter] ({self._index + 1}/{len(self._lines)})"
-        hint_surf = self._hint_font.render(hint, True, s.COLOR_TEXT_DIM)
+        hint_surf = font(20).render(hint, True, s.COLOR_TEXT_DIM)
         surface.blit(hint_surf, (box_rect.right - hint_surf.get_width() - 15,
                                  box_rect.bottom - 22))

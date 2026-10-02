@@ -15,31 +15,34 @@ kallinos/
 ├── states/                  # One file per game state
 │   ├── __init__.py
 │   ├── main_menu.py
-│   ├── exploration.py
-│   ├── combat.py            # (future)
-│   ├── dialogue.py          # (future)
+│   ├── exploration.py       # Overworld + tutorial script
+│   ├── combat.py            # Turn-based combat
+│   ├── dialogue.py          # Overlay text boxes
 │   ├── inventory.py         # (future)
 │   ├── pause_menu.py        # (future)
 │   └── game_over.py         # (future)
 │
 ├── entities/                # Player, NPC, Enemy classes
 │   ├── __init__.py
-│   ├── player.py            # (future)
-│   ├── npc.py               # (future)
-│   └── enemy.py             # (future)
+│   ├── character.py         # Shared base: position, facing, walk cycle
+│   ├── player.py
+│   ├── npc.py
+│   ├── enemy.py
+│   └── item_pickup.py
 │
 ├── systems/                 # Reusable subsystems
 │   ├── __init__.py
-│   ├── inventory_system.py  # (future)
+│   ├── camera.py
+│   ├── map_system.py        # Loads JSON maps, pre-renders ground/overhead layers
+│   ├── inventory_system.py
+│   ├── sprites/             # Procedural pixel art (see "Sprites" below)
 │   ├── combat_system.py     # (future)
 │   ├── quest_system.py      # (future)
 │   └── save_system.py       # (future)
 │
 ├── ui/                      # UI components (menus, HUD, text boxes)
 │   ├── __init__.py
-│   ├── button.py            # (future)
-│   ├── text_box.py          # (future)
-│   └── hud.py               # (future)
+│   └── widgets.py           # font(), draw_panel(), draw_bar(), draw_text_box()
 │
 ├── utils/                   # Pure helper functions
 │   ├── __init__.py
@@ -81,6 +84,36 @@ kallinos/
 - **Event loop:** Process `pygame.event.get()` once per frame in `Game.run()`, then pass the event list to the active state.
 - **Surface blitting:** States receive the display surface and draw onto it. Never call `pygame.display.flip()` inside a state — the Game loop handles it.
 - **Asset loading:** Load images/sounds once at startup or state entry, not every frame. Use `convert()` / `convert_alpha()` on loaded images.
+
+---
+
+## Sprites
+
+All art is generated in code by `systems/sprites/` at logical resolution
+(16×16 tiles, 16×24 characters) and scaled by `settings.SCALE`. Every
+generator is `@cached`, so calling it each frame is free.
+
+| Module          | Contents                                                          |
+|-----------------|-------------------------------------------------------------------|
+| `pixel_art.py`  | Helpers: `from_grid`, `mirrored`, `outline`, `shade`, `seeded`    |
+| `tiles.py`      | Ground tiles and map objects, keyed by the map object's `type`    |
+| `characters.py` | 4-direction × 4-frame people; a `Look` palette re-skins them      |
+| `creatures.py`  | Enemies, keyed by enemy `id` from `enemies.json`                  |
+| `items.py`      | Item sprites, keyed by item `id` from `items.json`                |
+| `backdrops.py`  | Full-screen backgrounds (combat)                                  |
+
+- **Hand-drawn sprites** are text grids: one character per pixel, `.` is
+  transparent, mapped through a palette dict. Symmetric sprites only store
+  the left half and use `mirrored()`.
+- **Procedural sprites** use `seeded(...)` RNGs so they look identical
+  every run.
+- **New map object:** write `def thing(w, h)` in `tiles.py`, add it to
+  `OBJECT_GENERATORS`, then use `{"type": "thing", ...}` in a map. Add the
+  type to `OVERHEAD_OBJECTS` if characters should walk behind it.
+- **New NPC look:** set `color` (tunic), `hair` and `bearded` on the NPC in
+  the map JSON. No new art is needed.
+- **New enemy/item:** add a generator and register it in
+  `ENEMY_GENERATORS` / `ITEM_GENERATORS`; unknown ids get a placeholder.
 
 ---
 

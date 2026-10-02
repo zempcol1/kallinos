@@ -13,7 +13,8 @@ python main.py
 
 | Key         | Action                    |
 |-------------|---------------------------|
-| Up / Down   | Navigate menu             |
+| WASD/Arrows | Move / navigate menus     |
+| E / Enter   | Interact, advance dialogue|
 | Enter/Space | Select option             |
 | ESC         | Back to main menu         |
 

@@ -8,6 +8,7 @@ import pygame
 
 import settings as s
 from game.state_machine import State
+from ui.widgets import font
 
 if TYPE_CHECKING:
     from game.game import Game
@@ -21,17 +22,9 @@ class MainMenu(State):
     def __init__(self, game: Game) -> None:
         super().__init__(game)
         self._selected = 0
-        self._title_font: pygame.font.Font | None = None
-        self._subtitle_font: pygame.font.Font | None = None
-        self._option_font: pygame.font.Font | None = None
-        self._footer_font: pygame.font.Font | None = None
 
     def enter(self, params: dict | None = None) -> None:
         self._selected = 0
-        self._title_font = pygame.font.Font(None, 64)
-        self._subtitle_font = pygame.font.Font(None, 28)
-        self._option_font = pygame.font.Font(None, 36)
-        self._footer_font = pygame.font.Font(None, 20)
 
     def handle_events(self, events: list[pygame.event.Event]) -> None:
         for event in events:
@@ -63,12 +56,12 @@ class MainMenu(State):
         cx = s.SCREEN_WIDTH // 2
 
         # Title
-        title_surf = self._title_font.render("KALLINOS", True, s.COLOR_TITLE_GOLD)
+        title_surf = font(64).render("KALLINOS", True, s.COLOR_TITLE_GOLD)
         title_rect = title_surf.get_rect(center=(cx, 140))
         surface.blit(title_surf, title_rect)
 
         # Subtitle
-        sub_surf = self._subtitle_font.render("~ Rise of a Mortal ~", True, s.COLOR_TEXT_DIM)
+        sub_surf = font(28).render("~ Rise of a Mortal ~", True, s.COLOR_TEXT_DIM)
         sub_rect = sub_surf.get_rect(center=(cx, 185))
         surface.blit(sub_surf, sub_rect)
 
@@ -83,14 +76,14 @@ class MainMenu(State):
                 color = s.COLOR_WHITE
                 text = f"  {option}"
 
-            opt_surf = self._option_font.render(text, True, color)
+            opt_surf = font(36).render(text, True, color)
             opt_rect = opt_surf.get_rect(center=(cx, start_y + i * spacing))
             surface.blit(opt_surf, opt_rect)
 
         # Footer
-        ver_surf = self._footer_font.render("v0.1", True, s.COLOR_TEXT_DIM)
+        ver_surf = font(20).render("v0.1", True, s.COLOR_TEXT_DIM)
         surface.blit(ver_surf, (15, s.SCREEN_HEIGHT - 30))
 
-        copy_surf = self._footer_font.render("Kallinos 2026", True, s.COLOR_TEXT_DIM)
+        copy_surf = font(20).render("Kallinos 2026", True, s.COLOR_TEXT_DIM)
         copy_rect = copy_surf.get_rect(topright=(s.SCREEN_WIDTH - 15, s.SCREEN_HEIGHT - 30))
         surface.blit(copy_surf, copy_rect)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from typing import TYPE_CHECKING
 
@@ -16,6 +17,8 @@ from game.state_machine import State
 from systems.camera import Camera
 from systems.inventory_system import load_item_db
 from systems.map_system import TileMap
+from systems.sprites import OBJECT_GENERATORS, silhouette
+from ui.widgets import draw_panel, draw_text_box, font
 
 if TYPE_CHECKING:
     from game.game import Game
@@ -50,10 +53,6 @@ class Exploration(State):
         self._is_tutorial = True
         self._current_map = "tutorial"
 
-        # Fonts
-        self._toast_font: pygame.font.Font | None = None
-        self._loc_font: pygame.font.Font | None = None
-        self._complete_font: pygame.font.Font | None = None
 
     def enter(self, params: dict | None = None) -> None:
         params = params or {}
@@ -73,13 +72,7 @@ class Exploration(State):
         self._player = Player(sx, sy)
 
         # NPCs
-        self._npcs = []
-        for nd in self._tile_map.npc_data:
-            npc = NPC(
-                nd["id"], nd["name"], nd["x"], nd["y"],
-                tuple(nd["color"]), nd.get("dialogue_idle", []),
-            )
-            self._npcs.append(npc)
+        self._npcs = [NPC.from_data(nd) for nd in self._tile_map.npc_data]
 
         # Item pickups
         self._pickups = []
@@ -104,10 +97,6 @@ class Exploration(State):
         self._show_shimmer = False
         self._tutorial_complete = False
         self._tutorial_complete_timer = 0.0
-
-        self._toast_font = pygame.font.Font(None, 26)
-        self._loc_font = pygame.font.Font(None, 22)
-        self._complete_font = pygame.font.Font(None, 48)
 
     def handle_events(self, events: list[pygame.event.Event]) -> None:
         if self._tutorial_complete:
@@ -154,8 +143,9 @@ class Exploration(State):
         # NPC interaction
         for npc in self._npcs:
             if npc.visible and npc.dialogue_idle and pr.colliderect(npc.interaction_rect()):
+                npc.face_towards(self._player.x, self._player.y)
                 lines = [(npc.name, line) for line in npc.dialogue_idle]
-                self.game.state_machine.push("dialogue", {"lines": lines})
+                self._push("dialogue", {"lines": lines})
                 return
 
     def update(self, dt: float) -> None:
@@ -189,6 +179,8 @@ class Exploration(State):
         if self._script_phase in ("explore", "post_combat"):
             keys = pygame.key.get_pressed()
             self._player.handle_input(keys, dt, self._tile_map.collisions)
+        else:
+            self._player.stop()
 
         # Camera
         self._camera.follow(self._player.x, self._player.y)
@@ -228,7 +220,7 @@ class Exploration(State):
             ("Niko", "Watch. I'll prove it."),
             ("Doros", "Niko, wait--"),
         ]
-        self.game.state_machine.push("dialogue", {
+        self._push("dialogue", {
             "lines": lines,
             "on_complete": "intro_done",
         })
@@ -260,8 +252,7 @@ class Exploration(State):
             if "boulder" not in self._triggered_events:
                 # Check if player has the branch
                 if not self._player.inventory.has_item("olive_branch"):
-                    self._triggered_events.discard("branch_warning")
-                    self.game.state_machine.push("dialogue", {
+                    self._push("dialogue", {
                         "lines": [("Doros", "Grab that branch, at least! Are you crazy?!")],
                         "on_complete": "branch_warning",
                     })
@@ -279,7 +270,7 @@ class Exploration(State):
                     ("Kallinos", "What-- what IS that?!"),
                     ("", "The Vatrachos puffs up and lunges!"),
                 ]
-                self.game.state_machine.push("dialogue", {
+                self._push("dialogue", {
                     "lines": lines,
                     "on_complete": "boulder_cutscene_done",
                 })
@@ -290,7 +281,7 @@ class Exploration(State):
         if not enemy_data:
             return
         enemy = Enemy(enemy_data)
-        self.game.state_machine.push("combat", {
+        self._push("combat", {
             "player": self._player,
             "enemy": enemy,
             "is_tutorial": True,
@@ -318,7 +309,7 @@ class Exploration(State):
             ("", "..."),
             ("Doros", "Brave. Stupid, but brave."),
         ]
-        self.game.state_machine.push("dialogue", {
+        self._push("dialogue", {
             "lines": lines,
             "on_complete": "post_combat_done",
         })
@@ -337,6 +328,11 @@ class Exploration(State):
         self._toast_text = text
         self._toast_timer = 2500.0
 
+    def _push(self, state_name: str, params: dict) -> None:
+        """Push an overlay state (dialogue/combat), freezing the player in place."""
+        self._player.stop()
+        self.game.state_machine.push(state_name, params)
+
     def _get_npc(self, npc_id: str) -> NPC | None:
         for npc in self._npcs:
             if npc.id == npc_id:
@@ -353,32 +349,26 @@ class Exploration(State):
         cam_x = self._camera.x if self._camera else 0
         cam_y = self._camera.y if self._camera else 0
 
-        # Map
+        # Clear first: maps smaller than the screen don't cover it
+        surface.fill(s.COLOR_BLACK)
         self._tile_map.render(surface, cam_x, cam_y)
 
-        # Item pickups
-        for pickup in self._pickups:
-            pickup.render(surface, cam_x, cam_y)
+        # Entities, back-to-front so lower ones overlap higher ones
+        entities = [*self._pickups, *self._npcs, self._player]
+        for entity in sorted(entities, key=lambda e: e.rect.bottom):
+            entity.render(surface, cam_x, cam_y)
 
-        # NPCs
-        for npc in self._npcs:
-            npc.render(surface, cam_x, cam_y)
+        self._tile_map.render_overhead(surface, cam_x, cam_y)
 
-        # Player
-        self._player.render(surface, cam_x, cam_y)
-
-        # Shimmer effect on the olive tree
         if self._show_shimmer:
             self._render_shimmer(surface, cam_x, cam_y)
 
-        # HUD
         self._render_hud(surface)
 
-        # Toast
         if self._toast_timer > 0 and self._toast_text:
-            self._render_toast(surface)
+            draw_text_box(surface, self._toast_text, font(26),
+                          center=(s.SCREEN_WIDTH // 2, 60), fill=s.COLOR_TOAST_BG)
 
-        # Fade overlay
         if self._fade_alpha > 0:
             fade_surf = pygame.Surface((s.SCREEN_WIDTH, s.SCREEN_HEIGHT))
             fade_surf.fill(s.COLOR_BLACK)
@@ -387,58 +377,38 @@ class Exploration(State):
 
     def _render_hud(self, surface: pygame.Surface) -> None:
         # Location bar at top
-        location_names = {
-            "tutorial": "Village of Kyrillos — Garden",
-            "village": "Village of Kyrillos",
-        }
-        loc_name = location_names.get(self._current_map, self._current_map)
-        loc_surf = self._loc_font.render(loc_name, True, s.COLOR_WHITE)
-        bg = pygame.Surface((s.SCREEN_WIDTH, 24), pygame.SRCALPHA)
-        bg.fill((0, 0, 0, 120))
-        surface.blit(bg, (0, 0))
+        draw_panel(surface, pygame.Rect(0, 0, s.SCREEN_WIDTH, 24), fill=(0, 0, 0, 120),
+                   border=None)
+        loc_surf = font(22).render(self._tile_map.display_name, True, s.COLOR_WHITE)
         surface.blit(loc_surf, (10, 4))
 
         # Controls hint
+        draw_panel(surface, pygame.Rect(0, s.SCREEN_HEIGHT - 20, s.SCREEN_WIDTH, 20),
+                   fill=(0, 0, 0, 100), border=None)
         hint = "[WASD/Arrows] Move  [E/Enter] Interact  [ESC] Menu"
-        hint_surf = self._loc_font.render(hint, True, s.COLOR_TEXT_DIM)
-        bg2 = pygame.Surface((s.SCREEN_WIDTH, 20), pygame.SRCALPHA)
-        bg2.fill((0, 0, 0, 100))
-        surface.blit(bg2, (0, s.SCREEN_HEIGHT - 20))
+        hint_surf = font(22).render(hint, True, s.COLOR_TEXT_DIM)
         surface.blit(hint_surf, (10, s.SCREEN_HEIGHT - 18))
 
-    def _render_toast(self, surface: pygame.Surface) -> None:
-        text_surf = self._toast_font.render(self._toast_text, True, s.COLOR_WHITE)
-        tr = text_surf.get_rect(center=(s.SCREEN_WIDTH // 2, 60))
-        bg = tr.inflate(20, 10)
-        bg_surf = pygame.Surface((bg.width, bg.height), pygame.SRCALPHA)
-        bg_surf.fill((30, 30, 50, 200))
-        surface.blit(bg_surf, bg)
-        surface.blit(text_surf, tr)
-
     def _render_shimmer(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
-        """Draw a golden shimmer on the olive tree canopy."""
-        import math
-        # Tree canopy is at tiles (11,5) size (3,2)
-        cx = 12 * s.SCALED_TILE + s.SCALED_TILE // 2 - cam_x
-        cy = 5 * s.SCALED_TILE + s.SCALED_TILE // 2 - cam_y
-
-        alpha = int(abs(math.sin(self._shimmer_timer / 300.0)) * 180)
-        shimmer = pygame.Surface((s.SCALED_TILE * 3, s.SCALED_TILE * 2), pygame.SRCALPHA)
-        shimmer.fill((241, 196, 15, alpha))
-        surface.blit(shimmer, (cx - s.SCALED_TILE, cy - s.SCALED_TILE // 2))
+        """Pulse a golden glow over the olive tree's crown (foreshadowing)."""
+        canopy = self._tile_map.find_object("tree_canopy")
+        if canopy is None:
+            return
+        tiles_w, tiles_h = canopy.w // s.SCALED_TILE, canopy.h // s.SCALED_TILE
+        glow = silhouette(OBJECT_GENERATORS["tree_canopy"](tiles_w, tiles_h),
+                          s.COLOR_TITLE_GOLD)
+        glow.set_alpha(int(abs(math.sin(self._shimmer_timer / 300.0)) * 180))
+        surface.blit(glow, canopy.move(-cam_x, -cam_y))
 
     def _render_tutorial_complete(self, surface: pygame.Surface) -> None:
         surface.fill(s.COLOR_BLACK)
-        title = self._complete_font.render("Tutorial Complete", True, s.COLOR_TITLE_GOLD)
-        tr = title.get_rect(center=(s.SCREEN_WIDTH // 2, s.SCREEN_HEIGHT // 2 - 40))
-        surface.blit(title, tr)
-
-        sub = self._toast_font.render("Chapter 1 — The Village", True, s.COLOR_ACCENT_GOLD)
-        sr = sub.get_rect(center=(s.SCREEN_WIDTH // 2, s.SCREEN_HEIGHT // 2))
-        surface.blit(sub, sr)
-
+        cx, cy = s.SCREEN_WIDTH // 2, s.SCREEN_HEIGHT // 2
+        lines = [
+            ("Tutorial Complete", font(48), s.COLOR_TITLE_GOLD, -40),
+            ("Chapter 1 — The Village", font(26), s.COLOR_ACCENT_GOLD, 0),
+        ]
         if self._tutorial_complete_timer > 1000:
-            hint = self._toast_font.render("Press Enter to continue", True, s.COLOR_TEXT_DIM)
-            hr = hint.get_rect(center=(s.SCREEN_WIDTH // 2, s.SCREEN_HEIGHT // 2 + 40))
-            surface.blit(hint, hr)
-
+            lines.append(("Press Enter to continue", font(26), s.COLOR_TEXT_DIM, 40))
+        for text, text_font, color, dy in lines:
+            text_surf = text_font.render(text, True, color)
+            surface.blit(text_surf, text_surf.get_rect(center=(cx, cy + dy)))

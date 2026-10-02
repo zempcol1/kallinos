@@ -5,20 +5,17 @@ from __future__ import annotations
 import pygame
 
 import settings as s
+from entities.character import Character
 from systems.inventory_system import Inventory
-from systems.sprite_factory import sprite_player
+from systems.sprites import PLAYER_LOOK
 
 
-class Player:
+class Player(Character):
     """The player character on the exploration map."""
 
     def __init__(self, tile_x: int, tile_y: int) -> None:
-        self.x = tile_x * s.SCALED_TILE + s.SCALED_TILE // 2
-        self.y = tile_y * s.SCALED_TILE + s.SCALED_TILE // 2
-        self.width = int(s.SCALED_TILE * 0.6)
-        self.height = int(s.SCALED_TILE * 0.85)
+        super().__init__(tile_x, tile_y, PLAYER_LOOK)
         self.speed = s.PLAYER_SPEED
-        self.color = (220, 195, 150)  # Skin/tunic placeholder
 
         # Stats
         self.name = "Kallinos"
@@ -31,15 +28,6 @@ class Player:
         self.xp_to_next = 30
 
         self.inventory = Inventory()
-
-    @property
-    def rect(self) -> pygame.Rect:
-        return pygame.Rect(
-            self.x - self.width // 2,
-            self.y - self.height // 2,
-            self.width,
-            self.height,
-        )
 
     def handle_input(self, keys: pygame.key.ScancodeWrapper, dt: float,
                      collisions: list[pygame.Rect]) -> None:
@@ -56,6 +44,12 @@ class Player:
         if keys[pygame.K_DOWN] or keys[pygame.K_s]:
             dy += dist
 
+        self.moving = bool(dx or dy)
+        if dx:
+            self.facing = "right" if dx > 0 else "left"
+        elif dy:
+            self.facing = "down" if dy > 0 else "up"
+
         # Normalize diagonal
         if dx and dy:
             factor = 0.7071  # 1/sqrt(2)
@@ -71,17 +65,12 @@ class Player:
         if self._collides(collisions):
             self.y -= dy
 
-    def _collides(self, collisions: list[pygame.Rect]) -> bool:
-        r = self.rect
-        for wall in collisions:
-            if r.colliderect(wall):
-                return True
-        return False
+        self.update_animation(dt)
 
-    def render(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
-        spr = sprite_player()
-        # Center the sprite on the player's collision rect
-        r = self.rect.move(-cam_x, -cam_y)
-        sx = r.centerx - spr.get_width() // 2
-        sy = r.bottom - spr.get_height()
-        surface.blit(spr, (sx, sy))
+    def stop(self) -> None:
+        """Halt the walk cycle (e.g. when a cutscene takes control)."""
+        self.moving = False
+        self.update_animation(0)
+
+    def _collides(self, collisions: list[pygame.Rect]) -> bool:
+        return self.rect.collidelist(collisions) != -1

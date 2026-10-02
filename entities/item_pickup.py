@@ -7,7 +7,7 @@ import math
 import pygame
 
 import settings as s
-from systems.sprite_factory import sprite_item_branch
+from systems.sprites import item
 
 
 class ItemPickup:
@@ -18,7 +18,7 @@ class ItemPickup:
         self.item_id = item_id
         self.x = tile_x * s.SCALED_TILE + s.SCALED_TILE // 2
         self.y = tile_y * s.SCALED_TILE + s.SCALED_TILE // 2
-        self.color = color
+        self.color = color  # Fallback when the item has no sprite
         self.collected = False
         self._bob_timer = 0.0
 
@@ -38,11 +38,15 @@ class ItemPickup:
         if self.collected:
             return
         bob = int(math.sin(self._bob_timer / 400.0) * 3)
-        r = self.rect.move(-cam_x, -cam_y + bob)
-        # Use sprite if available
-        if self.item_id == "olive_branch":
-            spr = sprite_item_branch()
-            surface.blit(spr, (r.x, r.y))
-        else:
-            pygame.draw.rect(surface, self.color, r)
-            pygame.draw.rect(surface, s.COLOR_WHITE, r, 1)
+        r = self.rect.move(-cam_x, -cam_y)
+        spr = item(self.item_id)
+        if spr is None:
+            pygame.draw.rect(surface, self.color, r.move(0, bob))
+            pygame.draw.rect(surface, s.COLOR_WHITE, r.move(0, bob), 1)
+            return
+
+        # Shadow stays on the ground while the item bobs above it
+        shadow = pygame.Surface((r.w, s.SCALE * 2), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow, (20, 25, 10, 60), shadow.get_rect())
+        surface.blit(shadow, (r.x, r.bottom))
+        surface.blit(spr, spr.get_rect(center=(r.centerx, r.centery + bob)))

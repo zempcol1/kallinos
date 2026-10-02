@@ -13,6 +13,8 @@ TILE_SIZE = 16          # Logical tile size in pixels
 SCALE = 3               # Render scale (16 × 3 = 48px on screen)
 SCALED_TILE = TILE_SIZE * SCALE   # 48
 PLAYER_SPEED = 120      # Pixels per second (at scale)
+WALK_FRAME_MS = 150     # Walk-cycle frame duration (visual_styling.md)
+COMBAT_SCALE = 6        # Sprite scale in the combat view (2× exploration)
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -46,20 +48,6 @@ COLOR_TEXT_LIGHT = (236, 240, 241)    # #ECF0F1
 COLOR_OLIVE_GREEN = (107, 142, 78)   # #6B8E4E
 COLOR_SAND = (232, 213, 163)         # #E8D5A3
 COLOR_DEEP_SEA = (27, 79, 114)       # #1B4F72
-
-# Tile palette (for procedural map rendering)
-TILE_COLORS = {
-    0: (107, 142, 78),    # grass
-    1: (193, 178, 140),   # dirt path
-    2: (160, 140, 110),   # stone wall
-    3: (180, 120, 90),    # house wall
-    4: (170, 90, 60),     # house roof / door
-    5: (80, 110, 55),     # dark green (tree canopy)
-    6: (120, 120, 110),   # boulder
-    7: (90, 70, 50),      # tree trunk
-    8: (200, 185, 155),   # fence
-    9: (75, 100, 50),     # bush
-}
 
 # Dialogue box
 COLOR_DIALOGUE_BG = (15, 15, 35, 230)

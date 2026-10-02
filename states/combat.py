@@ -28,14 +28,19 @@ class Combat(State):
         {
             "enemy": Enemy instance,
             "player": Player reference,
-            "is_tutorial": bool,
+            "can_flee": bool (default True),
+            "hint": str | None — shown until the first action,
         }
+
+    Victory pops back and calls ``on_combat_victory()`` on the state below;
+    defeat goes to the Game Over screen.
     """
 
     ACTIONS = ["Attack", "Defend", "Item", "Flee"]
 
     # Phases
     PHASE_PLAYER_CHOOSE = "player_choose"
+    PHASE_ITEM_SELECT = "item_select"
     PHASE_PLAYER_ACT = "player_act"
     PHASE_ENEMY_ACT = "enemy_act"
     PHASE_VICTORY = "victory"
@@ -51,18 +56,22 @@ class Combat(State):
     ENEMY_IDLE_MS = 600
     DEFEAT_FADE_MS = 700
 
+    MENU_ROWS = 4
+
     def __init__(self, game: Game) -> None:
         super().__init__(game)
         self._player: Player | None = None
         self._enemy: Enemy | None = None
-        self._is_tutorial = False
+        self._can_flee = True
+        self._hint: str | None = None
         self._phase = self.PHASE_PLAYER_CHOOSE
         self._selected = 0
+        self._item_options: list[tuple[dict, int]] = []  # (item, count)
+        self._item_selected = 0
         self._defending = False
         self._message = ""
         self._message_timer = 0.0
         self._turn_count = 0
-        self._show_tutorial_hint = False
         self._victory_xp = 0
         self._attacker: str | None = None  # "player" / "enemy" during a hit animation
         self._anim_timer = 0.0
@@ -72,14 +81,16 @@ class Combat(State):
         params = params or {}
         self._player = params["player"]
         self._enemy = params["enemy"]
-        self._is_tutorial = params.get("is_tutorial", False)
+        self._can_flee = params.get("can_flee", True)
+        self._hint = params.get("hint")
         self._phase = self.PHASE_PLAYER_CHOOSE
         self._selected = 0
+        self._item_options = []
+        self._item_selected = 0
         self._defending = False
         self._message = ""
         self._message_timer = 0.0
         self._turn_count = 0
-        self._show_tutorial_hint = self._is_tutorial
         self._victory_xp = 0
         self._attacker = None
         self._anim_timer = 0.0
@@ -98,6 +109,20 @@ class Combat(State):
                 elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                     self._execute_action()
 
+            elif self._phase == self.PHASE_ITEM_SELECT:
+                n_options = len(self._item_options) + 1  # + "Back"
+                if event.key == pygame.K_UP:
+                    self._item_selected = (self._item_selected - 1) % n_options
+                elif event.key == pygame.K_DOWN:
+                    self._item_selected = (self._item_selected + 1) % n_options
+                elif event.key == pygame.K_ESCAPE:
+                    self._phase = self.PHASE_PLAYER_CHOOSE
+                elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    if self._item_selected == len(self._item_options):
+                        self._phase = self.PHASE_PLAYER_CHOOSE
+                    else:
+                        self._use_item(self._item_options[self._item_selected][0])
+
             elif self._phase in (self.PHASE_VICTORY, self.PHASE_DEFEAT):
                 if event.key in (pygame.K_RETURN, pygame.K_SPACE):
                     self._finish_combat()
@@ -112,12 +137,15 @@ class Combat(State):
             self._set_message("You brace yourself!")
             self._phase = self.PHASE_PLAYER_ACT
         elif action == "Item":
-            consumables = self._player.inventory.get_consumables()
-            if not consumables:
+            self._item_options = self._player.inventory.consumable_stacks()
+            if not self._item_options:
                 self._set_message("No items to use!")
                 return
+            self._item_selected = 0
+            self._phase = self.PHASE_ITEM_SELECT
+            return
         elif action == "Flee":
-            if self._is_tutorial:
+            if not self._can_flee:
                 self._set_message("Your legs won't move!")
                 return
             # Non-tutorial flee: 50% chance
@@ -127,7 +155,16 @@ class Combat(State):
             self._set_message("Couldn't escape!")
             self._phase = self.PHASE_PLAYER_ACT
 
-        self._show_tutorial_hint = False
+        self._hint = None
+
+    def _use_item(self, used: dict) -> None:
+        """Consume an item; using it takes the player's turn."""
+        self._player.inventory.remove_item(used["id"])
+        heal = min(used.get("heal", 0), self._player.max_hp - self._player.hp)
+        self._player.hp += heal
+        self._set_message(f"You use the {used['name']}. +{heal} HP")
+        self._phase = self.PHASE_PLAYER_ACT
+        self._hint = None
 
     def _do_player_attack(self) -> None:
         weapon = self._player.inventory.get_weapon()
@@ -162,8 +199,12 @@ class Combat(State):
         self._message_timer = 1200.0  # ms to show
 
     def _finish_combat(self) -> None:
-        self.game.state_machine.pop()
-        current = self.game.state_machine.current
+        machine = self.game.state_machine
+        machine.pop()
+        if self._phase == self.PHASE_DEFEAT:
+            machine.change("game_over")
+            return
+        current = machine.current
         if self._phase == self.PHASE_VICTORY and hasattr(current, "on_combat_victory"):
             current.on_combat_victory()
 
@@ -212,9 +253,8 @@ class Combat(State):
         self._draw_hud(surface)
         self._draw_action_menu(surface)
         self._draw_message(surface)
-        if self._show_tutorial_hint and self._phase == self.PHASE_PLAYER_CHOOSE:
-            hint_surf = font(22).render("Choose ATTACK to strike with your weapon.",
-                                        True, s.COLOR_ACCENT_GOLD)
+        if self._hint and self._phase == self.PHASE_PLAYER_CHOOSE:
+            hint_surf = font(22).render(self._hint, True, s.COLOR_ACCENT_GOLD)
             surface.blit(hint_surf, hint_surf.get_rect(midtop=(s.SCREEN_WIDTH // 2, 30)))
 
     def _anim_offsets(self, who: str) -> tuple[int, bool]:
@@ -294,18 +334,25 @@ class Combat(State):
         surface.blit(hp_text, (bar.right + 8, bar.y - 2))
 
     def _draw_action_menu(self, surface: pygame.Surface) -> None:
-        if self._phase != self.PHASE_PLAYER_CHOOSE:
+        if self._phase == self.PHASE_PLAYER_CHOOSE:
+            options, selected_i = self.ACTIONS, self._selected
+        elif self._phase == self.PHASE_ITEM_SELECT:
+            options = [f"{it['name']} x{count}" for it, count in self._item_options] + ["Back"]
+            selected_i = self._item_selected
+        else:
             return
 
         panel = pygame.Rect(s.SCREEN_WIDTH - 250, s.SCREEN_HEIGHT - 180, 220, 160)
         draw_panel(surface, panel, fill=(22, 33, 62, 230))
 
-        for i, action in enumerate(self.ACTIONS):
-            selected = i == self._selected
+        # Scroll so the selection is always one of the visible rows
+        first = max(0, selected_i - self.MENU_ROWS + 1)
+        for row, action in enumerate(options[first:first + self.MENU_ROWS]):
+            selected = first + row == selected_i
             color = s.COLOR_ACCENT_GOLD if selected else s.COLOR_WHITE
             prefix = "> " if selected else "  "
             text_surf = font(28).render(prefix + action, True, color)
-            surface.blit(text_surf, (panel.x + 15, panel.y + 15 + i * 34))
+            surface.blit(text_surf, (panel.x + 15, panel.y + 15 + row * 34))
 
     def _draw_message(self, surface: pygame.Surface) -> None:
         # Victory/defeat messages stay up until the player presses Enter

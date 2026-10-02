@@ -26,6 +26,8 @@ class TileMap:
 
         self.name: str = data["name"]
         self.display_name: str = data.get("display_name", self.name)
+        self.script: str | None = data.get("script")
+        self.intro_toast: str | None = data.get("intro_toast")
         self.width: int = data["width"]
         self.height: int = data["height"]
         self.player_start: tuple[int, int] = tuple(data["player_start"])

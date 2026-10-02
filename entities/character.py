@@ -16,14 +16,18 @@ class Character:
     """
 
     def __init__(self, tile_x: int, tile_y: int, look: Look) -> None:
-        self.x = tile_x * s.SCALED_TILE + s.SCALED_TILE // 2
-        self.y = tile_y * s.SCALED_TILE + s.SCALED_TILE // 2
+        self.place(tile_x, tile_y)
         self.width = int(s.SCALED_TILE * 0.6)
         self.height = int(s.SCALED_TILE * 0.85)
         self.look = look
         self.facing = "down"
         self.moving = False
         self._walk_timer = 0.0
+
+    def place(self, tile_x: int, tile_y: int) -> None:
+        """Move to the center of a tile."""
+        self.x = tile_x * s.SCALED_TILE + s.SCALED_TILE // 2
+        self.y = tile_y * s.SCALED_TILE + s.SCALED_TILE // 2
 
     @property
     def rect(self) -> pygame.Rect:

@@ -35,12 +35,44 @@ _OLIVE_BRANCH_PALETTE = {
 }
 
 
+_FIGS = [
+    "................",
+    "................",
+    "................",
+    ".......g........",
+    "......gG........",
+    ".....ppp..g.....",
+    "....pPppp.gG....",
+    "....pPppp.ppp...",
+    "....ppppppPppp..",
+    ".....pppppPppp..",
+    "......pp.pppp...",
+    "..........pp....",
+    "................",
+    "................",
+    "................",
+    "................",
+]
+
+_FIGS_PALETTE = {
+    "p": (112, 58, 98),
+    "P": (160, 100, 140),
+    "g": (100, 132, 74),
+    "G": (74, 98, 58),
+}
+
+
 def _olive_branch() -> pygame.Surface:
     return outline(from_grid(_OLIVE_BRANCH, _OLIVE_BRANCH_PALETTE), (45, 34, 28))
 
 
+def _figs() -> pygame.Surface:
+    return outline(from_grid(_FIGS, _FIGS_PALETTE), (45, 34, 28))
+
+
 ITEM_GENERATORS: dict[str, Callable[[], pygame.Surface]] = {
     "olive_branch": _olive_branch,
+    "figs": _figs,
 }
 
 

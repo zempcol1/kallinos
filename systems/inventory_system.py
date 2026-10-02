@@ -56,3 +56,11 @@ class Inventory:
 
     def get_consumables(self) -> list[dict]:
         return [i for i in self._items if i.get("type") == "consumable"]
+
+    def consumable_stacks(self) -> list[tuple[dict, int]]:
+        """Consumables grouped by id as (item, count), in pickup order."""
+        stacks: dict[str, list] = {}
+        for item in self.get_consumables():
+            stack = stacks.setdefault(item["id"], [item, 0])
+            stack[1] += 1
+        return [(item, count) for item, count in stacks.values()]

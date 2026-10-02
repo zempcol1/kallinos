@@ -6,6 +6,13 @@
       "type": "weapon",
       "description": "A gnarled branch from the old olive tree. Heavier than it looks.",
       "attack_bonus": 2
+    },
+    {
+      "id": "figs",
+      "name": "Figs",
+      "type": "consumable",
+      "description": "A handful of ripe figs from the garden. Sweet and filling.",
+      "heal": 10
     }
   ]
 }

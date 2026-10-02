@@ -5,11 +5,14 @@ import sys
 import pygame
 
 import settings as s
+from game.session import GameSession
 from game.state_machine import StateMachine
 from states.main_menu import MainMenu
 from states.exploration import Exploration
 from states.dialogue import Dialogue
 from states.combat import Combat
+from states.game_over import GameOver
+from states.title_card import TitleCard
 
 
 class Game:
@@ -21,6 +24,7 @@ class Game:
         pygame.display.set_caption(s.GAME_TITLE)
         self.clock = pygame.time.Clock()
         self.running = True
+        self.session = GameSession(s.START_MAP)
 
         # State machine setup
         self.state_machine = StateMachine()
@@ -28,6 +32,8 @@ class Game:
         self.state_machine.register("exploration", Exploration(self))
         self.state_machine.register("dialogue", Dialogue(self))
         self.state_machine.register("combat", Combat(self))
+        self.state_machine.register("game_over", GameOver(self))
+        self.state_machine.register("title_card", TitleCard(self))
 
         # Start on the main menu
         self.state_machine.push("main_menu")
@@ -61,6 +67,11 @@ class Game:
 
         pygame.quit()
         sys.exit()
+
+    def new_game(self) -> None:
+        """Start a fresh playthrough on the first map."""
+        self.session = GameSession(s.START_MAP)
+        self.state_machine.change("exploration", {"map": s.START_MAP})
 
     def quit(self) -> None:
         """Signal the main loop to stop."""

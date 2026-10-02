@@ -41,7 +41,7 @@ class MainMenu(State):
     def _select_option(self) -> None:
         choice = self.MENU_OPTIONS[self._selected]
         if choice == "New Game":
-            self.game.state_machine.change("exploration")
+            self.game.new_game()
         elif choice == "Continue":
             pass  # Save/load not implemented yet
         elif choice == "Quit":

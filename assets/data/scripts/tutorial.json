@@ -1,0 +1,50 @@
+{
+  "enemy": "vatrachos",
+  "required_item": "olive_branch",
+  "trigger": "boulder_zone",
+  "pushback_tiles": 2,
+  "combat_hint": "Choose ATTACK to strike with your weapon.",
+  "missing_npc": "niko",
+  "missing_npc_return": [12, 7],
+  "shimmer_object": "tree_canopy",
+  "shimmer_ms": 2000,
+
+  "intro": [
+    ["Niko", "I'm telling you, something lives behind that boulder."],
+    ["Niko", "I heard it last night... a wet, slapping sound."],
+    ["Doros", "You heard a fish flopping in the creek. Sit down."],
+    ["Niko", "Watch. I'll prove it."],
+    ["Doros", "Niko, wait--"]
+  ],
+  "intro_toast": "*CROAK!*  ...silence.",
+
+  "missing_item": [
+    ["Doros", "Grab that branch, at least! Are you crazy?!"]
+  ],
+
+  "reveal": [
+    ["", "Niko is nowhere to be seen."],
+    ["", "Instead, crouched in the shadows..."],
+    ["", "A fat, hissing frog the size of a cat stares back at you."],
+    ["", "Its amber eyes catch the fading sunlight."],
+    ["Kallinos", "What-- what IS that?!"],
+    ["", "The Vatrachos puffs up and lunges!"]
+  ],
+
+  "victory": [
+    ["Niko", "You... you actually hit it?!"],
+    ["Kallinos", "You were IN the tree?!"],
+    ["Niko", "It JUMPED at me! What was I supposed to do?!"],
+    ["Doros", "Is it gone? I heard croaking-- are you both alive?"],
+    ["Niko", "Kallinos chased it off. With a stick."],
+    ["Doros", "...A stick."],
+    ["", "..."],
+    ["Doros", "Brave. Stupid, but brave."]
+  ],
+
+  "title_card": {
+    "title": "Tutorial Complete",
+    "subtitle": "Chapter 1 — The Village",
+    "next_map": "village"
+  }
+}

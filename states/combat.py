@@ -45,7 +45,7 @@ class Combat(State):
     PLAYER_FEET = (160, 400)
     ENEMY_FEET = (560, 236)
 
-    # Animation timings (ms), per visual_styling.md
+    # Animation timings (ms), per design.md
     LUNGE_MS = 240
     HIT_FLASH_MS = 320
     ENEMY_IDLE_MS = 600

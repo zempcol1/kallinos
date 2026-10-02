@@ -22,13 +22,19 @@ playthrough test is planned.
 main.py                 Entry point
 settings.py             All constants: screen, scale, timings, colors, paths
 game/
-  game.py               Game: window, clock, main loop, registers states
+  game.py               Game: window, clock, main loop, registers states, new_game()
+  session.py            GameSession: the persistent player + map-entry checkpoint
   state_machine.py      State base class + stack-based StateMachine
 states/                 One class per file
   main_menu.py          Title screen
-  exploration.py        Overworld + tutorial script (to be moved to JSON scripts)
+  exploration.py        Generic overworld; delegates story to the map's MapScript
   dialogue.py           Overlay text box
-  combat.py             1v1 turn-based combat
+  combat.py             1v1 turn-based combat (Attack/Defend/Item/Flee)
+  game_over.py          Defeat screen: Retry (checkpoint) / Main Menu
+  title_card.py         Full-screen chapter card, then changes to a next state
+story/                  Map scripts (story logic per map)
+  map_script.py         MapScript base: hooks called by Exploration
+  tutorial.py           TutorialScript (data in assets/data/scripts/tutorial.json)
 entities/
   character.py          Base for people: position, facing, walk cycle, shadow
   player.py, npc.py     Character subclasses
@@ -41,7 +47,7 @@ systems/
   sprites/              Procedural pixel art (below)
 ui/
   widgets.py            font(), draw_panel(), draw_bar(), draw_text_box(), wrap_text()
-assets/data/            items.json, enemies.json, maps/*.json
+assets/data/            items.json, enemies.json, maps/*.json, scripts/*.json
 ```
 
 ## State machine
@@ -54,7 +60,22 @@ assets/data/            items.json, enemies.json, maps/*.json
   the state beneath them. Only the top state gets events and updates.
 - Callbacks back to the state below: `Dialogue` calls
   `on_dialogue_complete(event_id)`, and `Combat` calls `on_combat_victory()`.
+  Combat defeat changes to `game_over`.
+- Persistent data (the player) lives in `game.session`, never in a state.
+  `Game.new_game()` starts a fresh session. Entering a map takes a checkpoint,
+  and Game Over → Retry restores it.
 - New state: create `states/x.py`, then register it in `Game.__init__`.
+
+## Map scripts (`story/`)
+
+`Exploration` is generic. Story logic for a map lives in a `MapScript`
+subclass, chosen by the map's `"script"` key via `story.MAP_SCRIPTS`. Hooks:
+`on_start`, `allows_control`, `update`, `on_dialogue_complete`,
+`on_combat_victory`, `render`. Scripts act through Exploration's helpers:
+`player`, `tile_map`, `get_npc`, `show_toast`, `push_dialogue(lines,
+on_complete)`, `start_combat(enemy_id, can_flee, hint)`, `fade_out(callback)`.
+Keep text, ids and positions in `assets/data/scripts/<id>.json`, not in Python.
+A JSON command runner is planned to replace most script classes.
 
 ## Map JSON (`assets/data/maps/*.json`)
 
@@ -63,6 +84,7 @@ All coordinates and sizes are in **tiles**.
 | Key            | Meaning                                                          |
 |----------------|------------------------------------------------------------------|
 | `name`, `display_name` | id / text shown in the HUD location bar                  |
+| `script`, `intro_toast` | optional MapScript id / toast shown after fade-in       |
 | `width`, `height`, `player_start` | size and spawn tile                           |
 | `ground`       | rows of tile ids: `0` grass, `1` dirt path (auto-edged)          |
 | `objects`      | `{type, x, y, w, h}`; `type` is a key of `OBJECT_GENERATORS`; later entries draw on top |

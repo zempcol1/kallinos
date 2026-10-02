@@ -82,6 +82,9 @@ score (people helped, companions kept alive):
 - **Theron's secret** about Kallinos' parentage.
 - **The raiders' sponsor** is a city-state or a god.
 
+### References, planned to add somewhere in the game
+- **Donkey eating figs**
+
 ### Cast (Act I)
 | Name          | Role                                                           |
 |---------------|----------------------------------------------------------------|
@@ -116,7 +119,8 @@ Explore → meet NPCs / events → dialogue or combat → XP, items, story flags
   - **Status effects**: poison, bleed, stun, slow, blessed, cursed.
   - **Enemy move lists** with weights/conditions; speed, crits, misses.
   - **Multi-phase bosses** (new moves, sprite swap, dialogue).
-- Defeat leads to a Game Over screen and retry from the last checkpoint.
+- Defeat leads to a Game Over screen: Retry (from map entry, until saves exist)
+  or Main Menu.
 
 ### Progression & items
 - XP → level up → stat growth and skill unlocks.
@@ -151,6 +155,9 @@ beside a gnarled olive tree (Athena's), a fallen olive-wood branch.
 monster, just a very big frog. HP 18 · ATK 4 · DEF 1 · 10 XP.
 
 **Olive-Wood Branch:** `olive_branch`, weapon, +2 attack. A quiet divine seed.
+
+**Figs:** `figs`, consumable, heals 10 HP. Lying in the garden, teaches the
+Item command.
 
 **Beats:** fade in → Niko investigates the boulder and vanishes → *croak* →
 player explores → picks up the branch (auto-equips; the boulder is blocked

@@ -1,6 +1,7 @@
 {
   "name": "village",
   "display_name": "Village of Kyrillos",
+  "intro_toast": "The next morning...",
   "width": 25,
   "height": 18,
   "tile_size": 16,

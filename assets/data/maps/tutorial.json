@@ -1,6 +1,7 @@
 {
   "name": "tutorial",
   "display_name": "Village of Kyrillos — Garden",
+  "script": "tutorial",
   "width": 17,
   "height": 12,
   "tile_size": 16,
@@ -81,6 +82,12 @@
       "x": 11,
       "y": 8,
       "color": [140, 110, 60]
+    },
+    {
+      "item_id": "figs",
+      "x": 5,
+      "y": 8,
+      "color": [110, 70, 110]
     }
   ]
 }

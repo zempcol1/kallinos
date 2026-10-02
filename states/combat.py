@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 from typing import TYPE_CHECKING
 
@@ -10,7 +11,10 @@ import pygame
 import settings as s
 from entities.enemy import Enemy
 from game.state_machine import State
-from systems.sprite_factory import sprite_enemy_vatrachos, sprite_player
+from systems.sprites import (
+    ENEMY_IDLE_FRAMES, PLAYER_LOOK, character, combat_backdrop, enemy, item, silhouette,
+)
+from ui.widgets import draw_bar, draw_panel, draw_text_box, font
 
 if TYPE_CHECKING:
     from game.game import Game
@@ -37,6 +41,16 @@ class Combat(State):
     PHASE_VICTORY = "victory"
     PHASE_DEFEAT = "defeat"
 
+    # Layout: screen-space feet positions of each combatant
+    PLAYER_FEET = (160, 400)
+    ENEMY_FEET = (560, 236)
+
+    # Animation timings (ms), per visual_styling.md
+    LUNGE_MS = 240
+    HIT_FLASH_MS = 320
+    ENEMY_IDLE_MS = 600
+    DEFEAT_FADE_MS = 700
+
     def __init__(self, game: Game) -> None:
         super().__init__(game)
         self._player: Player | None = None
@@ -50,12 +64,9 @@ class Combat(State):
         self._turn_count = 0
         self._show_tutorial_hint = False
         self._victory_xp = 0
-
-        # Fonts
-        self._font: pygame.font.Font | None = None
-        self._big_font: pygame.font.Font | None = None
-        self._small_font: pygame.font.Font | None = None
-        self._dmg_font: pygame.font.Font | None = None
+        self._attacker: str | None = None  # "player" / "enemy" during a hit animation
+        self._anim_timer = 0.0
+        self._idle_timer = 0.0
 
     def enter(self, params: dict | None = None) -> None:
         params = params or {}
@@ -70,11 +81,9 @@ class Combat(State):
         self._turn_count = 0
         self._show_tutorial_hint = self._is_tutorial
         self._victory_xp = 0
-
-        self._font = pygame.font.Font(None, 28)
-        self._big_font = pygame.font.Font(None, 40)
-        self._small_font = pygame.font.Font(None, 22)
-        self._dmg_font = pygame.font.Font(None, 36)
+        self._attacker = None
+        self._anim_timer = 0.0
+        self._idle_timer = 0.0
 
     def handle_events(self, events: list[pygame.event.Event]) -> None:
         for event in events:
@@ -130,6 +139,7 @@ class Combat(State):
         weapon_name = weapon["name"] if weapon else "bare fists"
         self._set_message(f"You strike with {weapon_name}! {damage} damage!")
         self._phase = self.PHASE_PLAYER_ACT
+        self._start_hit_anim("player")
 
     def _do_enemy_attack(self) -> None:
         raw = self._enemy.attack - self._player.defense
@@ -141,6 +151,11 @@ class Combat(State):
 
         self._set_message(f"{self._enemy.name} lunges! {damage} damage!")
         self._phase = self.PHASE_ENEMY_ACT
+        self._start_hit_anim("enemy")
+
+    def _start_hit_anim(self, attacker: str) -> None:
+        self._attacker = attacker
+        self._anim_timer = 0.0
 
     def _set_message(self, msg: str) -> None:
         self._message = msg
@@ -153,9 +168,13 @@ class Combat(State):
             current.on_combat_victory()
 
     def update(self, dt: float) -> None:
+        self._anim_timer += dt
+        self._idle_timer += dt
         if self._message_timer > 0:
             self._message_timer -= dt
-            if self._message_timer <= 0:
+            # Only action phases auto-advance; victory/defeat wait for Enter
+            if self._message_timer <= 0 and self._phase in (self.PHASE_PLAYER_ACT,
+                                                            self.PHASE_ENEMY_ACT):
                 self._advance_phase()
 
     def _advance_phase(self) -> None:
@@ -163,6 +182,8 @@ class Combat(State):
             self._victory_xp = self._enemy.xp_reward
             self._player.xp += self._victory_xp
             self._phase = self.PHASE_VICTORY
+            self._attacker = None
+            self._anim_timer = 0.0
             self._set_message(
                 f"The {self._enemy.name} croaks weakly and hops away! +{self._victory_xp} XP"
             )
@@ -185,120 +206,116 @@ class Combat(State):
     # ── Rendering ────────────────────────────────────────────────────────────
 
     def render(self, surface: pygame.Surface) -> None:
-        surface.fill(s.COLOR_COMBAT_BG)
+        surface.blit(combat_backdrop(self.PLAYER_FEET, self.ENEMY_FEET), (0, 0))
         self._draw_enemy(surface)
-        self._draw_player_sprite(surface)
+        self._draw_player(surface)
         self._draw_hud(surface)
         self._draw_action_menu(surface)
         self._draw_message(surface)
         if self._show_tutorial_hint and self._phase == self.PHASE_PLAYER_CHOOSE:
-            self._draw_tutorial_hint(surface)
+            hint_surf = font(22).render("Choose ATTACK to strike with your weapon.",
+                                        True, s.COLOR_ACCENT_GOLD)
+            surface.blit(hint_surf, hint_surf.get_rect(midtop=(s.SCREEN_WIDTH // 2, 30)))
+
+    def _anim_offsets(self, who: str) -> tuple[int, bool]:
+        """(x offset, flashing) for a combatant from the current hit animation."""
+        if self._attacker is None:
+            return 0, False
+        t = self._anim_timer
+        if self._attacker == who:
+            if t < self.LUNGE_MS:
+                direction = 1 if who == "player" else -1
+                return int(math.sin(math.pi * t / self.LUNGE_MS) * 30) * direction, False
+            return 0, False
+        # Target: shake and flash once the lunge connects
+        hit_t = t - self.LUNGE_MS / 2
+        if 0 <= hit_t < self.HIT_FLASH_MS:
+            shake = 4 if int(hit_t // 50) % 2 else -4
+            return shake, int(hit_t // 80) % 2 == 0
+        return 0, False
+
+    def _blit_combatant(self, surface: pygame.Surface, spr: pygame.Surface,
+                        feet: tuple[int, int], dx: int, flash: bool,
+                        alpha: int = 255) -> pygame.Rect:
+        rect = spr.get_rect(midbottom=(feet[0] + dx, feet[1]))
+        if flash:
+            spr = silhouette(spr, s.COLOR_WHITE)
+        elif alpha < 255:
+            spr = spr.copy()
+            spr.set_alpha(alpha)
+        surface.blit(spr, rect)
+        return rect
 
     def _draw_enemy(self, surface: pygame.Surface) -> None:
-        # Enemy sprite area (right side)
-        ex, ey = 520, 120
+        frames = ENEMY_IDLE_FRAMES.get(self._enemy.id, 1)
+        frame = int(self._idle_timer // self.ENEMY_IDLE_MS) % frames
+        spr = enemy(self._enemy.id, frame, s.COMBAT_SCALE)
 
-        # Use generated sprite
-        spr = sprite_enemy_vatrachos()
-        # Scale up 2× more for combat view
-        big = pygame.transform.scale(spr, (spr.get_width() * 2, spr.get_height() * 2))
-        surface.blit(big, (ex - big.get_width() // 2 + 40, ey))
+        alpha = 255
+        if self._phase == self.PHASE_VICTORY:
+            alpha = max(0, 255 - int(255 * self._anim_timer / self.DEFEAT_FADE_MS))
+        dx, flash = self._anim_offsets("enemy")
+        rect = self._blit_combatant(surface, spr, self.ENEMY_FEET, dx, flash, alpha)
 
-        ew = big.get_width()
-        eh = big.get_height()
+        # Name + HP bar above the enemy (anchored to its feet so the shake doesn't move it)
+        top_left = (self.ENEMY_FEET[0] - rect.w // 2, rect.y)
+        name_surf = font(28).render(self._enemy.name, True, s.COLOR_WHITE)
+        surface.blit(name_surf, (top_left[0], top_left[1] - 48))
+        bar = pygame.Rect(top_left[0], top_left[1] - 24, 100, 8)
+        draw_bar(surface, bar, self._enemy.hp / self._enemy.max_hp, s.COLOR_HP_RED)
+        hp_text = font(22).render(f"{self._enemy.hp}/{self._enemy.max_hp}",
+                                  True, s.COLOR_TEXT_LIGHT)
+        surface.blit(hp_text, (bar.right + 8, bar.y - 4))
 
-        # Name
-        name_surf = self._font.render(self._enemy.name, True, s.COLOR_WHITE)
-        surface.blit(name_surf, (ex, ey - 28))
+    def _draw_player(self, surface: pygame.Surface) -> None:
+        spr = character(PLAYER_LOOK, "right", 0, s.COMBAT_SCALE)
+        dx, flash = self._anim_offsets("player")
+        rect = self._blit_combatant(surface, spr, self.PLAYER_FEET, dx, flash)
 
-        # HP bar
-        bar_w = 80
-        bar_h = 8
-        bar_x, bar_y = ex, ey + eh + 8
-        ratio = self._enemy.hp / self._enemy.max_hp
-        pygame.draw.rect(surface, (60, 60, 60), (bar_x, bar_y, bar_w, bar_h))
-        pygame.draw.rect(surface, s.COLOR_HP_RED, (bar_x, bar_y, int(bar_w * ratio), bar_h))
-
-        hp_text = self._small_font.render(
-            f"{self._enemy.hp}/{self._enemy.max_hp}", True, s.COLOR_TEXT_LIGHT
-        )
-        surface.blit(hp_text, (bar_x, bar_y + 10))
-
-    def _draw_player_sprite(self, surface: pygame.Surface) -> None:
-        px, py = 140, 260
-
-        # Use generated sprite, scaled up for combat view
-        spr = sprite_player()
-        big = pygame.transform.scale(spr, (spr.get_width() * 2, spr.get_height() * 2))
-        surface.blit(big, (px - big.get_width() // 2, py))
-
-        # Weapon indicator
         weapon = self._player.inventory.get_weapon()
-        if weapon:
-            # Brown line for the stick, next to the player
-            wx = px + big.get_width() // 2 + 4
-            wy = py + 20
-            pygame.draw.line(surface, (140, 110, 60),
-                             (wx, wy), (wx + 24, wy - 30), 4)
+        weapon_spr = item(weapon["id"], s.COMBAT_SCALE) if weapon else None
+        if weapon_spr and not flash:
+            # Weapon grip (bottom-left of its sprite) sits in the hand
+            hand_x = rect.x + 8 * s.COMBAT_SCALE
+            hand_y = rect.y + 16 * s.COMBAT_SCALE
+            surface.blit(weapon_spr, (hand_x - 1 * s.COMBAT_SCALE,
+                                      hand_y - 13 * s.COMBAT_SCALE))
 
     def _draw_hud(self, surface: pygame.Surface) -> None:
-        # Player stats at bottom-left
-        y = s.SCREEN_HEIGHT - 80
-        name_surf = self._font.render(self._player.name, True, s.COLOR_WHITE)
-        surface.blit(name_surf, (30, y))
+        panel = pygame.Rect(20, s.SCREEN_HEIGHT - 90, 290, 70)
+        draw_panel(surface, panel, fill=(22, 33, 62, 220))
+        name_surf = font(28).render(self._player.name, True, s.COLOR_WHITE)
+        surface.blit(name_surf, (panel.x + 12, panel.y + 10))
 
-        # HP bar
-        bar_w, bar_h = 160, 12
-        bar_x = 30
-        hp_ratio = self._player.hp / self._player.max_hp
-        pygame.draw.rect(surface, (60, 60, 60), (bar_x, y + 28, bar_w, bar_h))
-        pygame.draw.rect(surface, s.COLOR_HP_RED,
-                         (bar_x, y + 28, int(bar_w * hp_ratio), bar_h))
-
-        hp_text = self._small_font.render(
-            f"HP {self._player.hp}/{self._player.max_hp}", True, s.COLOR_TEXT_LIGHT
-        )
-        surface.blit(hp_text, (bar_x + bar_w + 8, y + 26))
+        bar = pygame.Rect(panel.x + 12, panel.y + 40, 160, 12)
+        draw_bar(surface, bar, self._player.hp / self._player.max_hp, s.COLOR_HP_RED)
+        hp_text = font(22).render(f"HP {self._player.hp}/{self._player.max_hp}",
+                                  True, s.COLOR_TEXT_LIGHT)
+        surface.blit(hp_text, (bar.right + 8, bar.y - 2))
 
     def _draw_action_menu(self, surface: pygame.Surface) -> None:
         if self._phase != self.PHASE_PLAYER_CHOOSE:
             return
 
-        menu_x = s.SCREEN_WIDTH - 250
-        menu_y = s.SCREEN_HEIGHT - 180
-        panel = pygame.Rect(menu_x, menu_y, 220, 160)
-
-        # Panel bg
-        panel_surf = pygame.Surface((panel.width, panel.height), pygame.SRCALPHA)
-        panel_surf.fill((22, 33, 62, 230))
-        surface.blit(panel_surf, panel)
-        pygame.draw.rect(surface, s.COLOR_ACCENT_GOLD, panel, 2)
+        panel = pygame.Rect(s.SCREEN_WIDTH - 250, s.SCREEN_HEIGHT - 180, 220, 160)
+        draw_panel(surface, panel, fill=(22, 33, 62, 230))
 
         for i, action in enumerate(self.ACTIONS):
-            if i == self._selected:
-                color = s.COLOR_ACCENT_GOLD
-                prefix = "> "
-            else:
-                color = s.COLOR_WHITE
-                prefix = "  "
-            text_surf = self._font.render(prefix + action, True, color)
-            surface.blit(text_surf, (menu_x + 15, menu_y + 15 + i * 34))
+            selected = i == self._selected
+            color = s.COLOR_ACCENT_GOLD if selected else s.COLOR_WHITE
+            prefix = "> " if selected else "  "
+            text_surf = font(28).render(prefix + action, True, color)
+            surface.blit(text_surf, (panel.x + 15, panel.y + 15 + i * 34))
 
     def _draw_message(self, surface: pygame.Surface) -> None:
-        if not self._message or self._message_timer <= 0:
+        # Victory/defeat messages stay up until the player presses Enter
+        persistent = self._phase in (self.PHASE_VICTORY, self.PHASE_DEFEAT)
+        if not self._message or (self._message_timer <= 0 and not persistent):
             return
-
-        msg_surf = self._font.render(self._message, True, s.COLOR_WHITE)
-        msg_rect = msg_surf.get_rect(center=(s.SCREEN_WIDTH // 2, s.SCREEN_HEIGHT // 2 + 40))
-
-        # Background
-        bg = msg_rect.inflate(20, 12)
-        bg_surf = pygame.Surface((bg.width, bg.height), pygame.SRCALPHA)
-        bg_surf.fill((0, 0, 0, 180))
-        surface.blit(bg_surf, bg)
-        surface.blit(msg_surf, msg_rect)
-
-    def _draw_tutorial_hint(self, surface: pygame.Surface) -> None:
-        hint = "Choose ATTACK to strike with your weapon."
-        hint_surf = self._small_font.render(hint, True, s.COLOR_ACCENT_GOLD)
-        surface.blit(hint_surf, (s.SCREEN_WIDTH // 2 - hint_surf.get_width() // 2, 30))
+        draw_text_box(surface, self._message, font(28),
+                      center=(s.SCREEN_WIDTH // 2, s.SCREEN_HEIGHT - 135),
+                      padding=(20, 12))
+        if persistent:
+            hint = font(20).render("[Enter] Continue", True, s.COLOR_TEXT_DIM)
+            surface.blit(hint, hint.get_rect(center=(s.SCREEN_WIDTH // 2,
+                                                     s.SCREEN_HEIGHT - 105)))

@@ -1,243 +1,227 @@
-# Kallinos — Game Design Document
+# Kallinos — Game Design
 
-## Overview
-
-**Kallinos** is a 2D RPG set in a loosely historically accurate Ancient Greece. The player begins as an unknown, weak young Greek citizen and rises through trials, battles, and story events to become a legendary warrior — and ultimately, in a dramatic twist, ascends to godhood.
-
-Built with **Python 3.14+** and **Pygame-CE 2.x**, the game follows a **State Machine architecture** for clean separation of game phases.
+A 2D turn-based RPG set in a loosely historical Ancient Greece. Kallinos, a
+scrawny nobody from a coastal village, rises through trials and battles to
+become a legend, and finally discovers he may be more than mortal.
 
 ---
 
-## Story Arc
+## Pillars
 
-### Act I — The Nobody (Levels 1–10)
-- Player starts in a small coastal village (e.g., inspired by a minor polis).
-- Introduced to basic movement, dialogue, and inventory through mundane tasks.
-- First combat encounters: wild animals, petty bandits.
-- Inciting incident: the village is attacked or a loved one is taken, pushing the player outward.
+- **From nobody to god.** The power curve is the story: a stick-wielding
+  teenager in Act I, a candidate for godhood in Act IV.
+- **Grounded first, mythic later.** Act I is small, warm and a little funny
+  (the first enemy is a big frog). The gods stay deniable at first and then
+  step forward act by act.
+- **Greece you can feel.** Olive groves, whitewashed houses, terracotta roofs,
+  painted temples, the sea. Myth is woven into the everyday.
+- **Readable, snappy combat.** GBC/GBA-style 1v1 turns with real depth, but
+  never slow.
 
-### Act II — The Warrior's Path (Levels 11–25)
-- Player travels across Greek city-states (Athens, Sparta, Corinth, Delphi, etc.).
-- Joins a warband or competes in athletic/combat trials.
-- Encounters mythological creatures (harpies, cyclopes, minotaurs) blended with human enemies.
-- Gains reputation; NPCs begin recognizing the player.
-- Key story beats: betrayal by a mentor, alliance with a demigod, a prophecy revealed at Delphi.
+## Key decisions
 
-### Act III — The Legend (Levels 26–40)
-- Player leads armies, makes political choices between city-states.
-- Mythological stakes rise: interference from Olympian gods.
-- Descent into the Underworld as a major dungeon/story arc.
-- Climactic battle against a Titan or corrupted god.
-
-### Act IV — Apotheosis (Level 40+)
-- Plot twist: the player *is* of divine lineage (foreshadowed in Acts II/III).
-- Trials of ascension — one for each major Olympian domain.
-- Final transformation: the player becomes a new God.
-- Epilogue: the player's mortal companions react; the world changes.
+| Topic       | Decision                                                                 |
+|-------------|--------------------------------------------------------------------------|
+| Scope now   | A polished **Act I vertical slice** (~1–2h) before widening.             |
+| Story       | Mostly linear; choices add flavor and feed **2–3 endings**.              |
+| Combat      | **1v1** turn-based, deepened with skills, a resource bar, types and status effects. |
+| World       | Act I = connected maps (doors, map edges). Act II overworld: undecided.  |
+| Art         | **Hybrid**: procedural code art for tiles/scenery, hand-drawn PNGs for characters, portraits, bosses. Code art is always the fallback. |
+| Audio       | Generated in code for now; may be replaced by asset files later.         |
+| Content     | **Data-driven**: maps, dialogue, cutscenes and quests live in JSON.      |
 
 ---
 
-## Core Gameplay Loop
+## Story
 
+### Act I — The Nobody (levels 1–10)
+1. **Tutorial: the garden** *(implemented)*. Niko vanishes behind a boulder;
+   Kallinos grabs a fallen olive branch and fights a cat-sized frog. The olive
+   tree shimmers.
+2. **Next morning.** Errands around Kyrillos teach the village, the shop and
+   side quests. Strange soldiers at the harbor.
+3. **Elder Theron** asks about the branch: *"Athena's tree does not drop its
+   branches for just anyone."*
+4. **Growing up.** Small quests teach combat depth: a boar in the grove, crabs on
+   the shore, Niko's dare in the sea cave (first dungeon).
+5. **Unease.** The "merchants" are raiders. Optional clues can be found.
+6. **The Raid.** A night attack; Kyrillos burns. An escape through the village,
+   forced fights, and a flavor choice of whom to help first.
+7. **Boss: the raider captain** at the temple. Mid-fight the branch glows: the
+   first divine moment, never explained.
+8. **Aftermath.** Theron, wounded or taken, leaves a fragment: *"Your mother was
+   not the only one who prayed for you."*
+9. **Departure** along the coastal road.
+
+### Act II — The Warrior's Path (levels 11–25)
+Travel the city-states (Athens, Sparta, Corinth, Delphi), one per chapter, each
+with a trial, a boss and a new ally or skill. Mythic creatures (harpies,
+cyclopes, minotaurs) mix with human enemies. Key beats: betrayal by a mentor,
+alliance with a demigod, a prophecy at Delphi. Reveal who sponsored the raid.
+
+### Act III — The Legend (levels 26–40)
+Leading armies and choosing between city-states, interference from the
+Olympians, a descent into the Underworld, and a climax against a Titan or a
+corrupted god.
+
+### Act IV — Apotheosis (level 40+)
+The twist: Kallinos is of divine lineage, foreshadowed since the tutorial.
+Trials of ascension, one per Olympian domain, then the ending.
+
+### Endings (draft)
+Decided by a few big choices in Acts III/IV plus a hidden **mortal bonds**
+score (people helped, companions kept alive):
+- **Apotheosis**: accept godhood and become a new god of something earned in play.
+- **The Mortal Choice**: refuse divinity and go home to rebuild Kyrillos.
+- **The Usurper** *(optional, dark)*: seize power from a corrupted Olympian.
+
+### Threads seeded in Act I
+- **The olive branch** (Athena's sacred tree) grows into a real weapon over the game.
+- **Leto's frog curse.** Frogs near olive trees are said to be Lycian peasants
+  Leto cursed. Frogs keep reappearing (secret boss, later Leto herself).
+- **Theron's secret** about Kallinos' parentage.
+- **The raiders' sponsor** is a city-state or a god.
+
+### Cast (Act I)
+| Name          | Role                                                           |
+|---------------|----------------------------------------------------------------|
+| Kallinos      | The player. Scrawny teenager, no combat experience.            |
+| Doros         | Talkative friend, cautious, provides commentary.               |
+| Niko          | Bold friend, dares others, gets into trouble.                  |
+| Elder Theron  | Village elder and temple keeper; knows more than he says.      |
+
+---
+
+## Gameplay
+
+### Core loop
 ```
-Explore World → Encounter Events/NPCs → Enter Combat or Dialogue
-     ↑                                           ↓
-     ← Gain XP / Items / Story Progress ←────────┘
+Explore → meet NPCs / events → dialogue or combat → XP, items, story flags → explore
 ```
 
-1. **Exploration:** Tile-based 2D maps. Enter buildings, dungeons, cities.
-2. **Dialogue & Story:** NPC interactions drive quests and lore. Branching choices where meaningful.
-3. **Turn-Based Combat:** Triggered by encounters. Harry Potter GBC/GBA-style:
-   - Player and enemy take turns.
-   - Actions: Attack, Defend, Use Item, Special Ability, Flee.
-   - Elemental/type advantages (e.g., fire vs. ice, divine vs. undead).
-4. **Inventory & Equipment:** Collect weapons, armor, consumables, quest items. Equip gear to change stats.
-5. **Progression:** XP → Level Up → Stat increases + ability unlocks.
+### Exploration
+- Tile maps, 16px tiles at 3× scale; free movement with collision boxes.
+- Interact (E/Enter) with NPCs, items, doors and signs.
+- Maps connect through doors and map edges; interiors are small maps.
+- Visible roaming enemies rather than random battles *(leaning; not final)*.
+
+### Combat
+- 1v1 turns: **Attack, Defend, Item, Flee**, plus **Skills** (planned).
+- Damage: `attack + weapon_bonus - defense + variance`, min 1. Defend halves
+  the next hit.
+- Planned depth:
+  - **Menos** (μένος, battle fury): a bar that fills when hitting or getting
+    hit, spent on skills.
+  - **Types**: Mortal, Beast, Monster, Undead, Divine (small chart).
+  - **Status effects**: poison, bleed, stun, slow, blessed, cursed.
+  - **Enemy move lists** with weights/conditions; speed, crits, misses.
+  - **Multi-phase bosses** (new moves, sprite swap, dialogue).
+- Defeat leads to a Game Over screen and retry from the last checkpoint.
+
+### Progression & items
+- XP → level up → stat growth and skill unlocks.
+- Slots: weapon, armor, accessory. Categories: weapons, armor, consumables,
+  quest items. Currency: drachma, spent at the agora shop.
+- Act I item ideas: figs, bread, olive oil, honey, wine, sling, bronze knife,
+  leather cuirass, Athena's owl charm.
+
+### Quests & story state
+- Global story flags drive everything: NPC dialogue variants, map changes
+  (e.g. burning Kyrillos), quest stages, endings.
+- Quest log plus an active-quest tracker on the HUD.
+
+### Act I world
+House (interior), garden *(done)*, Kyrillos village *(started)*, Temple of
+Athena, agora, harbor, olive grove & hills, marsh, sea cave (dungeon), burning
+Kyrillos (raid variant), coastal road.
+
+Act I enemies: Vátrachos *(done)*, wild boar, goat, crab swarm, sea snake,
+bandit, bandit archer, raider hoplite. Bosses: raider captain; secret boss
+"Mother of Frogs".
 
 ---
 
-## Planned Systems
+## Tutorial reference *(implemented)*
 
-### 1. State Machine
-All game phases are discrete states managed by a central `StateMachine` (stack-based):
-- `MainMenu`, `Exploration`, `Combat`, `Dialogue`
-- Future: `Inventory`, `PauseMenu`, `GameOver`, `Cutscene`
+**Setting:** a fenced garden behind a house on the edge of Kyrillos, late
+afternoon, golden light. Landmarks: house, stone walls, fence, a mossy boulder
+beside a gnarled olive tree (Athena's), a fallen olive-wood branch.
 
-### 2. Map / Level System
-- Levels defined as JSON data files.
-- Each map has layers: ground, objects, collisions, triggers.
-- Transitions between maps via trigger zones (doors, paths).
+**Vátrachos (Βάτραχος):** a cat-sized marsh frog with amber eyes. Not a
+monster, just a very big frog. HP 18 · ATK 4 · DEF 1 · 10 XP.
 
-### 3. Entity System
-- **Player:** Stats (HP, ATK, DEF, level), equipment slots, ability list.
-- **NPCs:** Dialogue, visibility flags, interaction rects.
-- **Enemies:** Stats, AI behavior, loot tables.
+**Olive-Wood Branch:** `olive_branch`, weapon, +2 attack. A quiet divine seed.
 
-### 4. Inventory & Equipment
-- Item categories: Weapons, Armor, Consumables, Quest Items.
-- Each item: `id`, `name`, `description`, `type`, `effects`.
-- Equipment slots: weapon, armor (future).
-- Equipment directly modifies player stats in combat.
-
-### 5. Turn-Based Combat
-- Separate combat screen with player sprite vs. enemy sprite.
-- Action menu: Attack | Defend | Item | Flee
-- Damage formula: `base_attack + weapon_bonus - enemy_defense + random_variance`
-- Status effects (future): poison, burn, stun, blessed, cursed.
-- Boss fights with multiple phases (future).
-
-### 6. Quest / Story Progression
-- Flags/variables system for tracking story state globally.
-- Main quests gate Act progression; side quests are optional.
-
-### 7. Save / Load (Future)
-- Serialize game state to JSON. Save slots (3–5). Auto-save on map transitions.
-
-### 8. Audio (Future)
-- Background music per map/state. Sound effects for actions.
+**Beats:** fade in → Niko investigates the boulder and vanishes → *croak* →
+player explores → picks up the branch (auto-equips; the boulder is blocked
+without it) → frog reveal → combat (flee locked) → frog hops away → Niko drops
+from the tree → the olive tree shimmers → "Tutorial Complete" → village.
 
 ---
 
-## Technical Requirements
+## Art direction
 
-| Requirement         | Detail                                |
-|---------------------|---------------------------------------|
-| Language            | Python 3.14+                          |
-| Engine              | Pygame-CE 2.x                         |
-| Resolution          | 800×600 (scalable)                    |
-| Target FPS          | 60                                    |
-| Architecture        | Stack-based Finite State Machine      |
-| Data Formats        | JSON for items, maps, dialogue        |
-| Tile Size           | 16px logical, 3× scale (48px render)  |
-| Version Control     | Git                                   |
+### Style
+- 16-bit pixel art, SNES / GBA RPG feel. Top-down 3/4 view for exploration;
+  side view for combat.
+- **Logical sizes:** tiles 16×16, characters 16×24 (4 directions × 4 walk
+  frames), scaled 3× (48px tiles); combat sprites 6×.
+- 1px dark outline on characters and props; light from the top-left.
+- **Hybrid pipeline** *(planned)*: a PNG in `assets/images/` overrides the procedural
+  sprite of the same id. PNG candidates: main cast, dialogue portraits, bosses.
+  Character sheets use rows down/up/left/right and 4 columns of 16×24.
 
----
+### World look
+- Whitewashed plaster, terracotta roofs, silvery-green olive trees, cypresses,
+  vines, marble columns. Painted temples: blue and gold accents.
+- Underworld: dark stone, green/blue ghost light. Olympus: white, gold, clouds.
+- Planned: water and shoreline, animated tiles, time-of-day tint (golden
+  afternoon, night raid), fire glow, particles (dust, leaves, embers).
 
-## Current WIP — Tutorial Level (Act I Opening)
+### Palette
+| Role        | Hex       | Role            | Hex       |
+|-------------|-----------|-----------------|-----------|
+| Sand        | `#E8D5A3` | Menu BG         | `#0F0F23` |
+| Olive green | `#6B8E4E` | Combat BG       | `#1A1A2E` |
+| Deep sea    | `#1B4F72` | Panel blue      | `#16213E` |
+| Sky blue    | `#85C1E9` | Accent gold     | `#D4A844` |
+| Terracotta  | `#C0725E` | Title gold      | `#F1C40F` |
+| Marble      | `#F2EFEA` | HP red          | `#C0392B` |
+| Stone       | `#8D8D8D` | MP blue         | `#2980B9` |
+| Dark wood   | `#5D4037` | XP green        | `#27AE60` |
 
-### Scene Design
+**Meaning:** gold = selected/important, red = damage, green = healing,
+blue = information/mana.
 
-**Setting:** A small fenced garden behind a modest Greek house, on the edge of the Village of Kyrillos. Late afternoon, golden light. Cicadas buzzing.
+### Animation
+| Animation        | Timing                                             |
+|------------------|----------------------------------------------------|
+| Walk cycle       | 4 frames × 150ms                                   |
+| Enemy idle       | 2 frames × 600ms                                   |
+| Attack lunge     | 240ms                                              |
+| Hit reaction     | white flash + shake, ~320ms                        |
+| Enemy defeat     | fade out, 700ms                                    |
+| Screen fade      | ~500ms                                             |
 
-**Characters:**
-- **Kallinos** — a scrawny teenager, no combat experience.
-- **Doros** — talkative, stays visible, provides commentary.
-- **Niko** — the bold one, dares others, goes missing.
-
-**Key landmarks:** House (top), low stone wall/fence, garden with trampled grass, moss-covered boulder next to a gnarled olive tree (Athena's sacred tree), fallen olive-wood branch on the ground.
-
-### The Creature — Vátrachos (Βάτραχος)
-
-A **cat-sized marsh frog** with slick dark-green skin and unsettling amber eyes. Not a monster — just an abnormally large frog. To three teenagers, it's terrifying.
-
-**Mythological flavor:** Local villagers whisper that frogs near old olive trees are cursed — remnants of Lycian peasants whom Leto transformed into frogs for refusing her water.
-
-| Stat     | Value | Rationale                              |
-|----------|-------|----------------------------------------|
-| HP       | 18    | Dies in ~4–5 hits from a stick         |
-| Attack   | 4     | Stings but won't one-shot the player   |
-| Defense  | 1     | It's a frog, not armored               |
-| XP award | 10    | Just enough to feel rewarding          |
-
-### The First Weapon — Olive-Wood Branch
-
-A **fallen branch from Athena's sacred tree**. Subtle narrative seed — the player unknowingly carries something of faint divine significance.
-
-| Field         | Value                                        |
-|---------------|----------------------------------------------|
-| id            | `olive_branch`                               |
-| name          | Olive-Wood Branch                            |
-| type          | weapon                                       |
-| attack_bonus  | 2                                            |
-
-### Beat-by-Beat Flow
-
-1. Fade in → garden scene, three friends sitting.
-2. Opening dialogue: Niko investigates the boulder, disappears.
-3. Croak. Silence. Doros volunteers Kallinos to check.
-4. Player gains control, can explore. Doros stays put.
-5. Item pickup: olive-wood branch near tree roots. Auto-equips as weapon.
-6. Boulder trigger zone: soft-blocked if no branch ("Grab that branch!").
-7. Boulder cutscene: fat hissing frog revealed. Lunges.
-8. Combat vs. Vátrachos (tutorial fight, flee locked).
-9. Victory: frog hops away (stays alive — grounded tone).
-10. Post-combat: Niko drops from tree, humorous dialogue.
-11. Shimmer on olive tree — foreshadowing.
-12. Fade to black → "Tutorial Complete" → transition to Village map.
+### UI
+- Translucent dark panels with a gold border; high contrast text.
+- Exploration HUD: location bar on top, controls hint on the bottom; planned
+  HP and active-quest tracker.
+- Combat: enemy upper right with name and HP bar, player lower left, action
+  menu bottom right, player panel bottom left, messages above the panels.
+- Dialogue: bottom box, speaker name in gold; planned typewriter text,
+  portraits and choices.
+- Fonts: pygame default for now; planned pixel font (check the license, e.g.
+  Press Start 2P, OFL) and a Greek-key (meander) panel border.
+- Every input gets visible feedback.
 
 ---
 
-## Implementation Status
-
-### Tutorial Phases
-
-| Phase | Name                        | Status      |
-|-------|-----------------------------|-------------|
-| 1     | Tile Map & Camera           | ✅ Done     |
-| 2     | Player Entity & Movement    | ✅ Done     |
-| 3     | NPCs & Dialogue             | ✅ Done     |
-| 4     | Inventory & Item Pickup     | ✅ Done     |
-| 5     | Trigger Zones & Events      | ✅ Done     |
-| 6     | Turn-Based Combat (Basic)   | ✅ Done     |
-| 7     | Post-Combat & Wrap-up       | ✅ Done     |
-| 8     | Sprite Generation           | ✅ Done     |
-
-### Post-Tutorial
-
-| Feature                              | Status      |
-|--------------------------------------|-------------|
-| Village map (Act I start)            | ✅ Done     |
-| Equipment system (weapon slots)      | ✅ Done     |
-| Tutorial → Village progression       | ✅ Done     |
-
-### Future Milestones
-
-| #  | Milestone                        | Status      |
-|----|----------------------------------|-------------|
-| 1  | Village NPCs & first quest       | 🔲 Planned  |
-| 2  | Additional enemy types            | 🔲 Planned  |
-| 3  | Expanded combat (skills, items)   | 🔲 Planned  |
-| 4  | Quest / flag system               | 🔲 Planned  |
-| 5  | Save / Load                       | 🔲 Planned  |
-| 6  | Audio integration                 | 🔲 Planned  |
-| 7  | Act I content                     | 🔲 Planned  |
-
----
-
-## Architecture Notes
-
-- **State Machine:** Stack-based FSM. `push()` for overlays (dialogue on top of exploration), `pop()` to resume, `change()` to replace. `resume()` hook prevents re-init on pop.
-- **Rendering:** Full stack render — each state on the stack draws in order, so dialogue overlays exploration.
-- **Sprites:** Procedurally generated via `systems/sprite_factory.py` — 16×16 tiles, 16×24 characters, scaled 3×.
-- **Maps:** JSON files in `assets/data/maps/`. Ground grid + objects + collisions + triggers + NPC/item placement.
-- **Exploration:** Supports map-specific scripting (tutorial has phases), generic maps run in free-roam mode.
-
-### File Structure
-
-```
-main.py                          # Entry point
-settings.py                      # All constants
-game/
-  game.py                        # Game class, main loop
-  state_machine.py               # State + StateMachine
-states/
-  main_menu.py                   # Title screen
-  exploration.py                 # Overworld, tutorial scripting
-  dialogue.py                    # Text overlay
-  combat.py                      # Turn-based combat
-entities/
-  player.py                      # Player entity
-  npc.py                         # NPC entity
-  enemy.py                       # Enemy (combat)
-  item_pickup.py                 # World item pickup
-systems/
-  map_system.py                  # TileMap loader/renderer
-  camera.py                      # Camera follow
-  inventory_system.py            # Inventory + equipment
-  sprite_factory.py              # Procedural sprite generation
-assets/data/
-  items.json                     # Item definitions
-  enemies.json                   # Enemy definitions
-  maps/tutorial.json             # Tutorial garden map
-  maps/village.json              # Village of Kyrillos map
-```
+## Audio direction
+- **Now:** synthesized in code (square/triangle/noise with envelopes) into
+  `pygame.mixer.Sound` buffers; no files needed.
+- **SFX:** menu, footsteps, hits, crits, heal, level up, pickup, doors, croak,
+  text blip.
+- **Music:** short looping chiptune tracks (title, village, combat, boss, sad)
+  with a lyre-like timbre and Greek modes (Dorian, Phrygian).
+- **Later:** may switch to files in `assets/sounds/` behind the same API.

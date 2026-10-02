@@ -13,7 +13,7 @@ TILE_SIZE = 16          # Logical tile size in pixels
 SCALE = 3               # Render scale (16 × 3 = 48px on screen)
 SCALED_TILE = TILE_SIZE * SCALE   # 48
 PLAYER_SPEED = 120      # Pixels per second (at scale)
-WALK_FRAME_MS = 150     # Walk-cycle frame duration (visual_styling.md)
+WALK_FRAME_MS = 150     # Walk-cycle frame duration (design.md)
 COMBAT_SCALE = 6        # Sprite scale in the combat view (2× exploration)
 
 # ── Paths ────────────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ SOUNDS_DIR = os.path.join(ASSETS_DIR, "sounds")
 DATA_DIR = os.path.join(ASSETS_DIR, "data")
 MAPS_DIR = os.path.join(DATA_DIR, "maps")
 
-# ── Colors (from visual_styling.md palettes) ────────────────────────────────
+# ── Colors (from design.md palette) ────────────────────────────────
 # Menu / UI
 COLOR_MENU_BG = (15, 15, 35)         # #0F0F23
 COLOR_TITLE_GOLD = (241, 196, 15)    # #F1C40F

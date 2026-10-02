@@ -1,25 +1,37 @@
 # Kallinos — Rise of a Mortal
 
-A 2D RPG set in Ancient Greece, built with Python and Pygame (CE).
+A 2D turn-based RPG set in Ancient Greece. Start as a nobody from the village
+of Kyrillos, armed with a stick, and rise to legend and beyond.
+Built with Python and pygame-ce; all art is currently generated in code.
 
-## Quick Start
+## Quick start
+
+Requires Python 3.12+.
 
 ```bash
 pip install pygame-ce
 python main.py
 ```
 
-## Controls (current)
+## Controls
 
-| Key         | Action                    |
-|-------------|---------------------------|
-| WASD/Arrows | Move / navigate menus     |
-| E / Enter   | Interact, advance dialogue|
-| Enter/Space | Select option             |
-| ESC         | Back to main menu         |
+| Key           | Action                       |
+|---------------|------------------------------|
+| WASD / Arrows | Move, navigate menus         |
+| E / Enter     | Interact, advance dialogue   |
+| Enter / Space | Confirm                      |
+| ESC           | Back to main menu            |
 
-## Documentation
+## What's playable
 
-- [requirements.md](requirements.md) — Game design, systems, story arc
-- [coding_guidelines.md](coding_guidelines.md) — Architecture, conventions, how to extend
-- [visual_styling.md](visual_styling.md) — UI layout, color palettes, art direction
+- **Tutorial:** the garden, Niko's disappearance, the olive-wood branch, and a
+  turn-based fight with the Vátrachos (a very large frog).
+- **Kyrillos village:** free roam and talking to villagers.
+
+Next up: persistent progress across maps, data-driven cutscenes and quests,
+deeper combat, and the rest of Act I.
+
+## Docs
+
+- [design.md](design.md): story, gameplay, art and audio direction
+- [CLAUDE.md](CLAUDE.md): architecture, data formats, conventions

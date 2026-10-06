@@ -7,6 +7,7 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 FPS = 60
 GAME_TITLE = "Kallinos — Rise of a Mortal"
+GAME_VERSION = "v0.1"
 START_MAP = "tutorial"
 
 # ── Tile / Map ───────────────────────────────────────────────────────────────
@@ -15,6 +16,7 @@ SCALE = 3               # Render scale (16 × 3 = 48px on screen)
 SCALED_TILE = TILE_SIZE * SCALE   # 48
 PLAYER_SPEED = 120      # Pixels per second (at scale)
 WALK_FRAME_MS = 150     # Walk-cycle frame duration (design.md)
+TEXT_SPEED_CPS = 45     # Dialogue typewriter speed, characters per second
 COMBAT_SCALE = 6        # Sprite scale in the combat view (2× exploration)
 
 # ── Paths ────────────────────────────────────────────────────────────────────

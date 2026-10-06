@@ -2,92 +2,137 @@
   "name": "tutorial",
   "display_name": "Village of Kyrillos — Garden",
   "script": "tutorial",
-  "width": 17,
-  "height": 12,
+  "width": 23,
+  "height": 16,
   "tile_size": 16,
-  "player_start": [8, 6],
+  "player_start": [
+    11,
+    6
+  ],
   "ground": [
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0],
-    [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0],
-    [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0],
-    [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0],
-    [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0],
-    [0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
   ],
   "objects": [
-    {"type": "house_wall", "x": 5, "y": 2, "w": 7, "h": 1},
-    {"type": "house_roof", "x": 5, "y": 0, "w": 7, "h": 2},
-    {"type": "house_door", "x": 8, "y": 2, "w": 1, "h": 1},
-    {"type": "fence",      "x": 1, "y": 3, "w": 1, "h": 8},
-    {"type": "fence",      "x": 15,"y": 3, "w": 1, "h": 8},
-    {"type": "fence",      "x": 1, "y": 10,"w": 15,"h": 1},
-    {"type": "fence",      "x": 1, "y": 3, "w": 4, "h": 1},
-    {"type": "fence",      "x": 12,"y": 3, "w": 4, "h": 1},
-    {"type": "stone_wall", "x": 0, "y": 0, "w": 5, "h": 3},
-    {"type": "stone_wall", "x": 12,"y": 0, "w": 5, "h": 3},
-    {"type": "boulder",    "x": 13,"y": 8, "w": 2, "h": 2},
-    {"type": "tree_trunk", "x": 12,"y": 7, "w": 1, "h": 1},
-    {"type": "tree_canopy","x": 11,"y": 5, "w": 3, "h": 2},
-    {"type": "bush",       "x": 2, "y": 5, "w": 1, "h": 1},
-    {"type": "bush",       "x": 3, "y": 8, "w": 1, "h": 1},
-    {"type": "bush",       "x": 2, "y": 9, "w": 1, "h": 1}
+    {"type": "stone_wall", "x": 0, "y": 0, "w": 8, "h": 3},
+    {"type": "stone_wall", "x": 15, "y": 0, "w": 8, "h": 3, "variant": 1},
+    {"type": "house_roof", "x": 8, "y": 0, "w": 7, "h": 2},
+    {"type": "house_wall", "x": 8, "y": 2, "w": 7, "h": 1},
+    {"type": "house_door", "x": 11, "y": 2, "w": 1, "h": 1},
+    {"type": "fence", "x": 4, "y": 3, "w": 4, "h": 1},
+    {"type": "fence", "x": 15, "y": 3, "w": 4, "h": 1},
+    {"type": "fence", "x": 4, "y": 3, "w": 1, "h": 10},
+    {"type": "fence", "x": 18, "y": 3, "w": 1, "h": 10},
+    {"type": "fence", "x": 4, "y": 12, "w": 15, "h": 1},
+    {"type": "fig_tree", "x": 5, "y": 4, "w": 3, "h": 3, "variant": 1, "harvest": "figs", "harvest_text": "You twist a ripe fig off the branch."},
+    {"type": "fig_tree", "x": 5, "y": 9, "w": 2, "h": 2, "harvest": "figs", "harvest_text": "You pick the softest figs from the bush."},
+    {"type": "olive_tree", "id": "athenas_olive", "x": 14, "y": 6, "w": 3, "h": 3, "variant": 2},
+    {"type": "boulder", "x": 16, "y": 8, "w": 2, "h": 2},
+    {"type": "bush", "x": 7, "y": 11, "w": 1, "h": 1, "variant": 0},
+    {"type": "bush", "x": 10, "y": 11, "w": 1, "h": 1, "variant": 2},
+    {"type": "bush", "x": 17, "y": 4, "w": 1, "h": 1, "variant": 1},
+    {"type": "bush", "x": 13, "y": 11, "w": 1, "h": 1, "variant": 1},
+    {"type": "cypress", "x": 1, "y": 2, "w": 2, "h": 4},
+    {"type": "olive_tree", "x": 0, "y": 6, "w": 3, "h": 3, "variant": 3},
+    {"type": "plane_tree", "x": 0, "y": 11, "w": 5, "h": 5},
+    {"type": "cypress", "x": 20, "y": 2, "w": 2, "h": 4, "variant": 1},
+    {"type": "olive_tree", "x": 19, "y": 6, "w": 3, "h": 3, "variant": 4},
+    {"type": "cypress", "x": 21, "y": 9, "w": 2, "h": 4, "variant": 2},
+    {"type": "bush", "x": 19, "y": 11, "w": 1, "h": 1, "variant": 2},
+    {"type": "olive_tree", "x": 7, "y": 13, "w": 3, "h": 3, "variant": 5},
+    {"type": "bush", "x": 11, "y": 14, "w": 1, "h": 1, "variant": 1},
+    {"type": "olive_tree", "x": 13, "y": 13, "w": 3, "h": 3, "variant": 6},
+    {"type": "cypress", "x": 18, "y": 12, "w": 2, "h": 4, "variant": 3},
+    {"type": "bush", "x": 21, "y": 14, "w": 1, "h": 1, "variant": 0}
   ],
   "collisions": [
-    {"x": 5, "y": 0, "w": 7, "h": 3, "note": "house"},
-    {"x": 0, "y": 0, "w": 5, "h": 3, "note": "left_wall"},
-    {"x": 12,"y": 0, "w": 5, "h": 3, "note": "right_wall"},
-    {"x": 1, "y": 3, "w": 1, "h": 8, "note": "fence_left"},
-    {"x": 15,"y": 3, "w": 1, "h": 8, "note": "fence_right"},
-    {"x": 1, "y": 10,"w": 15,"h": 1, "note": "fence_bottom"},
-    {"x": 1, "y": 3, "w": 4, "h": 1, "note": "fence_top_left"},
-    {"x": 12,"y": 3, "w": 4, "h": 1, "note": "fence_top_right"},
-    {"x": 13,"y": 8, "w": 2, "h": 2, "note": "boulder"},
-    {"x": 12,"y": 7, "w": 1, "h": 1, "note": "tree_trunk"},
-    {"x": 2, "y": 5, "w": 1, "h": 1, "note": "bush1"},
-    {"x": 3, "y": 8, "w": 1, "h": 1, "note": "bush2"},
-    {"x": 2, "y": 9, "w": 1, "h": 1, "note": "bush3"}
+    {
+      "x": 0,
+      "y": 0,
+      "w": 23,
+      "h": 3,
+      "note": "house and terrace walls"
+    }
   ],
   "triggers": [
-    {"id": "boulder_zone", "x": 12, "y": 8, "w": 3, "h": 2}
+    {
+      "id": "boulder_zone",
+      "x": 15.4,
+      "y": 8.2,
+      "w": 3,
+      "h": 2.6
+    }
   ],
   "npcs": [
     {
       "id": "doros",
       "name": "Doros",
-      "x": 6,
+      "x": 9,
       "y": 5,
-      "color": [80, 130, 200],
-      "hair": [34, 26, 22],
-      "dialogue_idle": ["Don't look at me like that. Just go check!"]
+      "color": [
+        80,
+        130,
+        200
+      ],
+      "hair": [
+        34,
+        26,
+        22
+      ],
+      "hair_style": "short",
+      "dialogue_idle": [
+        "Don't look at me like that. Just go check!",
+        "And grab some figs from the tree first. In case you get hungry. Or hurt."
+      ]
     },
     {
       "id": "niko",
       "name": "Niko",
-      "x": 10,
+      "x": 13,
       "y": 5,
-      "color": [200, 120, 80],
-      "hair": [140, 68, 32],
+      "color": [
+        200,
+        120,
+        80
+      ],
+      "hair": [
+        140,
+        68,
+        32
+      ],
+      "hair_style": "curly",
+      "trim": [
+        120,
+        70,
+        40
+      ],
       "dialogue_idle": []
     }
   ],
   "item_pickups": [
     {
       "item_id": "olive_branch",
-      "x": 11,
-      "y": 8,
-      "color": [140, 110, 60]
-    },
-    {
-      "item_id": "figs",
-      "x": 5,
-      "y": 8,
-      "color": [110, 70, 110]
+      "x": 12,
+      "y": 9,
+      "color": [
+        140,
+        110,
+        60
+      ]
     }
   ]
 }

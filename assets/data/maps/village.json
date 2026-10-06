@@ -40,12 +40,13 @@
     {"type": "house_roof",   "x": 18, "y": 9, "w": 4, "h": 2},
     {"type": "house_door",   "x": 20, "y": 12,"w": 1, "h": 1},
     {"type": "temple",       "x": 10, "y": 3, "w": 5, "h": 4},
-    {"type": "tree_trunk",   "x": 8,  "y": 13,"w": 1, "h": 1},
-    {"type": "tree_canopy",  "x": 7,  "y": 11,"w": 3, "h": 2},
-    {"type": "tree_trunk",   "x": 16, "y": 13,"w": 1, "h": 1},
-    {"type": "tree_canopy",  "x": 15, "y": 11,"w": 3, "h": 2},
+    {"type": "olive_tree",   "x": 7,  "y": 11,"w": 3, "h": 3},
+    {"type": "olive_tree",   "x": 15, "y": 11,"w": 3, "h": 3, "variant": 1},
+    {"type": "plane_tree",   "x": 0,  "y": 13,"w": 5, "h": 5},
+    {"type": "cypress",      "x": 22, "y": 1, "w": 2, "h": 4},
+    {"type": "cypress",      "x": 1,  "y": 0, "w": 2, "h": 4, "variant": 1},
     {"type": "bush",         "x": 6,  "y": 7, "w": 1, "h": 1},
-    {"type": "bush",         "x": 18, "y": 7, "w": 1, "h": 1},
+    {"type": "bush",         "x": 18, "y": 7, "w": 1, "h": 1, "variant": 1},
     {"type": "fence",        "x": 10, "y": 7, "w": 5, "h": 1}
   ],
   "collisions": [
@@ -53,12 +54,7 @@
     {"x": 17, "y": 2, "w": 5, "h": 4, "note": "house_right_top"},
     {"x": 3,  "y": 9, "w": 4, "h": 4, "note": "house_left_bottom"},
     {"x": 18, "y": 9, "w": 4, "h": 4, "note": "house_right_bottom"},
-    {"x": 10, "y": 3, "w": 5, "h": 4, "note": "temple"},
-    {"x": 8,  "y": 11,"w": 1, "h": 3, "note": "tree_left"},
-    {"x": 16, "y": 11,"w": 1, "h": 3, "note": "tree_right"},
-    {"x": 6,  "y": 7, "w": 1, "h": 1, "note": "bush_left"},
-    {"x": 18, "y": 7, "w": 1, "h": 1, "note": "bush_right"},
-    {"x": 10, "y": 7, "w": 5, "h": 1, "note": "fence_center"}
+    {"x": 10, "y": 3, "w": 5, "h": 4, "note": "temple"}
   ],
   "triggers": [],
   "npcs": [
@@ -69,6 +65,7 @@
       "y": 10,
       "color": [80, 130, 200],
       "hair": [34, 26, 22],
+      "hair_style": "short",
       "dialogue_idle": ["The village feels different today. Did you see the soldiers at the harbor?"]
     },
     {
@@ -78,6 +75,8 @@
       "y": 10,
       "color": [200, 120, 80],
       "hair": [140, 68, 32],
+      "hair_style": "curly",
+      "trim": [120, 70, 40],
       "dialogue_idle": ["I still can't believe you fought that thing with a stick! Wait till everyone hears."]
     },
     {
@@ -87,6 +86,7 @@
       "y": 8,
       "color": [180, 180, 180],
       "hair": [214, 210, 200],
+      "hair_style": "elder",
       "bearded": true,
       "dialogue_idle": ["Kallinos. Come find me at the temple. There is something you must know."]
     }

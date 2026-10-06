@@ -70,6 +70,22 @@ def shade(color: Color, amount: float) -> tuple[int, int, int]:
     return tuple(int(c + (target - c) * t) for c in color[:3])
 
 
+def lerp(a: Color, b: Color, t: float) -> tuple[int, int, int]:
+    """Blend two colors; ``t`` = 0 gives ``a``, 1 gives ``b``."""
+    return tuple(int(x + (y - x) * t) for x, y in zip(a[:3], b[:3]))
+
+
+def stamp(surf: pygame.Surface, rows: Sequence[str], palette: Palette,
+          pos: tuple[int, int]) -> None:
+    """Draw a small text grid (a leaf, a flower...) onto a surface at ``pos``."""
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch != TRANSPARENT:
+                px, py = pos[0] + x, pos[1] + y
+                if 0 <= px < surf.get_width() and 0 <= py < surf.get_height():
+                    surf.set_at((px, py), palette[ch])
+
+
 def silhouette(surf: pygame.Surface, color: Color) -> pygame.Surface:
     """A same-size surface with every opaque pixel filled with one color."""
     mask = pygame.mask.from_surface(surf)
@@ -84,14 +100,6 @@ def outline(surf: pygame.Surface, color: Color) -> pygame.Surface:
         result.blit(sil, (dx, dy))
     result.blit(surf, (0, 0))
     return result
-
-
-def ellipse_shadow(surf: pygame.Surface, rect: pygame.Rect | tuple, alpha: int = 70) -> None:
-    """Blend a soft dark ellipse onto a surface (ground shadows)."""
-    rect = pygame.Rect(rect)
-    shadow = pygame.Surface(rect.size, pygame.SRCALPHA)
-    pygame.draw.ellipse(shadow, (20, 25, 10, alpha), shadow.get_rect())
-    surf.blit(shadow, rect)
 
 
 def speckle(surf: pygame.Surface, rng: random.Random, color: Color, count: int,

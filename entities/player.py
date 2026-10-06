@@ -13,6 +13,9 @@ from systems.sprites import PLAYER_LOOK
 class Player(Character):
     """The player character on the exploration map."""
 
+    REACH = s.SCALED_TILE // 2   # how far in front of the feet interactions reach
+    _FACING_STEP = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}
+
     def __init__(self, tile_x: int, tile_y: int) -> None:
         super().__init__(tile_x, tile_y, PLAYER_LOOK)
         self.speed = s.PLAYER_SPEED
@@ -66,6 +69,12 @@ class Player(Character):
             self.y -= dy
 
         self.update_animation(dt)
+
+    def reach_rect(self) -> pygame.Rect:
+        """The area in front of the player that interactions can reach."""
+        dx, dy = self._FACING_STEP[self.facing]
+        return self.rect.move(dx * self.REACH, dy * self.REACH).inflate(self.REACH // 2,
+                                                                        self.REACH // 2)
 
     def stop(self) -> None:
         """Halt the walk cycle (e.g. when a cutscene takes control)."""

@@ -7,7 +7,7 @@ import math
 import pygame
 
 import settings as s
-from systems.sprites import item
+from systems.sprites import character_shadow, item
 
 
 class ItemPickup:
@@ -31,13 +31,20 @@ class ItemPickup:
             size, size,
         )
 
+    @property
+    def depth(self) -> int:
+        return self.rect.bottom
+
+    def interaction_rect(self) -> pygame.Rect:
+        return self.rect.inflate(s.SCALED_TILE // 2, s.SCALED_TILE // 2)
+
     def update(self, dt: float) -> None:
         self._bob_timer += dt
 
     def render(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
         if self.collected:
             return
-        bob = int(math.sin(self._bob_timer / 400.0) * 3)
+        bob = round(math.sin(self._bob_timer / 400.0)) * s.SCALE   # stay on the pixel grid
         r = self.rect.move(-cam_x, -cam_y)
         spr = item(self.item_id)
         if spr is None:
@@ -46,7 +53,6 @@ class ItemPickup:
             return
 
         # Shadow stays on the ground while the item bobs above it
-        shadow = pygame.Surface((r.w, s.SCALE * 2), pygame.SRCALPHA)
-        pygame.draw.ellipse(shadow, (20, 25, 10, 60), shadow.get_rect())
-        surface.blit(shadow, (r.x, r.bottom))
+        shadow = character_shadow()
+        surface.blit(shadow, shadow.get_rect(center=(r.centerx, r.bottom + s.SCALE)))
         surface.blit(spr, spr.get_rect(center=(r.centerx, r.centery + bob)))

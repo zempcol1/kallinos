@@ -10,6 +10,11 @@ pip install pygame-ce
 python main.py
 ```
 
+Stand-alone Windows build: `pip install pyinstaller`, then `python build_exe.py`
+writes `dist/Kallinos.exe` (one file, assets bundled, app icon from
+`icons.app_icon`). When frozen, `settings.BASE_DIR` points into the bundle, so
+always build file paths from `settings`, never from the working directory.
+
 Headless (tests, screenshots): set `SDL_VIDEODRIVER=dummy` before importing
 pygame, build `Game()`, then drive `game.state_machine` directly by calling
 `handle_events`/`update`/`render` on the states and saving `game.screen` with
@@ -20,6 +25,7 @@ playthrough test is planned.
 
 ```
 main.py                 Entry point
+build_exe.py            Builds dist/Kallinos.exe with PyInstaller
 settings.py             All constants: screen, scale, timings, colors, paths
 game/
   game.py               Game: window, clock, main loop, registers states, new_game()
@@ -133,7 +139,7 @@ Everything is generated in code at logical size and scaled by
 | `portraits.py`  | 32×32 dialogue busts from a `Look` (talking/blinking frames)     |
 | `creatures.py`  | Enemies by id (`ENEMY_GENERATORS`, `ENEMY_IDLE_FRAMES`)          |
 | `items.py`      | Items by id (`ITEM_GENERATORS`)                                  |
-| `icons.py`      | Small UI sprites: interact bubble, continue arrow, laurel cursor |
+| `icons.py`      | Small UI sprites: interact bubble, continue arrow, laurel, app icon |
 | `backdrops.py`  | Full-screen combat backdrop                                      |
 | `title.py`      | Title screen layers (sky, sea, headland, olive) and the logo     |
 

@@ -43,8 +43,3 @@ Rebuild after changing the game.
 
 Next up: persistent progress across maps, data-driven cutscenes and quests,
 deeper combat, and the rest of Act I.
-
-## Docs
-
-- [design.md](design.md): story, gameplay, art and audio direction
-- [CLAUDE.md](CLAUDE.md): architecture, data formats, conventions

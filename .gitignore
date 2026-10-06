@@ -206,5 +206,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Private planning notes
+# Private development docs (local only)
 PLAN.md
+CLAUDE.md
+design.md

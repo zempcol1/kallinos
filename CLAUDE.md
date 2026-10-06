@@ -26,9 +26,9 @@ game/
   session.py            GameSession: the persistent player + map-entry checkpoint
   state_machine.py      State base class + stack-based StateMachine
 states/                 One class per file
-  main_menu.py          Title screen
+  main_menu.py          Animated title screen (sunset scene, logo, menu)
   exploration.py        Generic overworld; delegates story to the map's MapScript
-  dialogue.py           Overlay text box
+  dialogue.py           Overlay text box: portrait, name tab, typewriter text
   combat.py             1v1 turn-based combat (Attack/Defend/Item/Flee)
   game_over.py          Defeat screen: Retry (checkpoint) / Main Menu
   title_card.py         Full-screen chapter card, then changes to a next state
@@ -36,17 +36,19 @@ story/                  Map scripts (story logic per map)
   map_script.py         MapScript base: hooks called by Exploration
   tutorial.py           TutorialScript (data in assets/data/scripts/tutorial.json)
 entities/
-  character.py          Base for people: position, facing, walk cycle, shadow
-  player.py, npc.py     Character subclasses
+  character.py          Base for people: feet box, facing, walk cycle, depth, shadow
+  player.py, npc.py     Character subclasses (NPCs can walk scripted paths)
+  prop.py               Depth-sorted map object (trees, fences...), harvestable
   enemy.py              Combat stats loaded from enemies.json
   item_pickup.py        Bobbing item on the map
 systems/
-  map_system.py         Loads map JSON, pre-renders ground + overhead layers
+  map_system.py         Loads map JSON: ground layer (+ shadows), props, overhead
   camera.py             Follows the player; centers maps smaller than the screen
   inventory_system.py   Items + equipped weapon
   sprites/              Procedural pixel art (below)
 ui/
-  widgets.py            font(), draw_panel(), draw_bar(), draw_text_box(), wrap_text()
+  widgets.py            font(), draw_panel(), draw_bar(), draw_text_box(), wrap_text(),
+                        draw_fade_strip(), draw_shadowed_text(), draw_ornament_rules()
 assets/data/            items.json, enemies.json, maps/*.json, scripts/*.json
 ```
 
@@ -60,6 +62,8 @@ assets/data/            items.json, enemies.json, maps/*.json, scripts/*.json
   the state beneath them. Only the top state gets events and updates.
 - Callbacks back to the state below: `Dialogue` calls
   `on_dialogue_complete(event_id)`, and `Combat` calls `on_combat_victory()`.
+  `Dialogue` takes `looks` ({speaker: Look}) to show portraits; Exploration
+  fills it from the player and the map's NPCs.
   Combat defeat changes to `game_over`.
 - Persistent data (the player) lives in `game.session`, never in a state.
   `Game.new_game()` starts a fresh session. Entering a map takes a checkpoint,
@@ -74,12 +78,15 @@ subclass, chosen by the map's `"script"` key via `story.MAP_SCRIPTS`. Hooks:
 `on_combat_victory`, `render`. Scripts act through Exploration's helpers:
 `player`, `tile_map`, `get_npc`, `show_toast`, `push_dialogue(lines,
 on_complete)`, `start_combat(enemy_id, can_flee, hint)`, `fade_out(callback)`.
+For small cutscenes, NPCs have `walk(path)`/`walking`, and characters have
+`lift` (height off the ground) and `alpha`.
 Keep text, ids and positions in `assets/data/scripts/<id>.json`, not in Python.
 A JSON command runner is planned to replace most script classes.
 
 ## Map JSON (`assets/data/maps/*.json`)
 
-All coordinates and sizes are in **tiles**.
+All coordinates and sizes are in **tiles** (fractions allowed for
+collisions and triggers).
 
 | Key            | Meaning                                                          |
 |----------------|------------------------------------------------------------------|
@@ -87,15 +94,28 @@ All coordinates and sizes are in **tiles**.
 | `script`, `intro_toast` | optional MapScript id / toast shown after fade-in       |
 | `width`, `height`, `player_start` | size and spawn tile                           |
 | `ground`       | rows of tile ids: `0` grass, `1` dirt path (auto-edged)          |
-| `objects`      | `{type, x, y, w, h}`; `type` is a key of `OBJECT_GENERATORS`; later entries draw on top |
-| `collisions`   | `{x, y, w, h}` blocking rects (independent of objects)           |
+| `objects`      | `{type, x, y, w, h, variant?, id?, solid?, harvest?, harvest_text?}`; see below |
+| `collisions`   | `{x, y, w, h}` extra blocking rects (walls, houses)              |
 | `triggers`     | `{id, x, y, w, h}` zones checked by state code                   |
-| `npcs`         | `{id, name, x, y, color, hair?, bearded?, dialogue_idle[]}`      |
+| `npcs`         | `{id, name, x, y, color, hair?, hair_style?, trim?, bearded?, dialogue_idle[]}` |
 | `item_pickups` | `{item_id, x, y, color}` (color = fallback when no sprite)       |
 
-Object types: `house_wall`, `house_roof`, `house_door`, `temple`,
-`stone_wall`, `fence` (vertical when h > w), `boulder`, `bush`, `tree_trunk`,
-`tree_canopy` (overhead: drawn above characters).
+Objects (`OBJECT_TYPES` in `systems/sprites/objects.py`):
+
+- **Ground** (baked under characters): `house_wall`, `house_roof`,
+  `house_door`, `temple`, `stone_wall` (terrace wall; on tall walls the top
+  stays transparent so the grass reads as the bank behind it).
+- **Sorted** (props, depth-sorted with characters, so you can walk behind
+  them): `olive_tree` (3×3), `cypress` (2×4), `plane_tree` (5×5), `fig_tree`
+  (3×3 tree, 2×2 bush), `bush` (variants 0 myrtle, 1 oleander, 2 lavender),
+  `boulder`, `fence`. Trees fade while the player stands behind them.
+- `fence` is tiled: every fence tile links to its fence neighbours, so
+  overlapping runs form clean corners, ends and junctions.
+- Sorted objects get an automatic collision **footprint** (trunk base, rails);
+  `"solid": false` turns it off. Their shadows are baked into the ground.
+- `variant` reseeds or restyles the sprite; `id` lets scripts find the prop
+  (`tile_map.get_prop(id)`); `harvest: item_id` (fig trees) gives that item
+  once on interact, then shows the picked sprite. Later entries draw on top.
 
 ## Sprites (`systems/sprites/`)
 
@@ -104,21 +124,32 @@ Everything is generated in code at logical size and scaled by
 
 | Module          | Contents                                                         |
 |-----------------|------------------------------------------------------------------|
-| `pixel_art.py`  | `from_grid`, `mirrored`, `outline`, `silhouette`, `shade`, `seeded`, `cached` |
-| `tiles.py`      | Ground tiles and map objects (`OBJECT_GENERATORS`, `OVERHEAD_OBJECTS`) |
-| `characters.py` | People: shared grids, re-skinned by a `Look` palette             |
+| `pixel_art.py`  | `from_grid`, `mirrored`, `stamp`, `outline`, `silhouette`, `shade`, `lerp`, `seeded`, `cached` |
+| `tiles.py`      | Ground tiles (grass, dirt path)                                  |
+| `structures.py` | Houses, terrace stone wall, fence pieces, temple                 |
+| `nature.py`     | Olive, cypress, plane and fig trees, bushes, boulder             |
+| `objects.py`    | `OBJECT_TYPES`: per type the sprite, layer, footprint and shadow |
+| `characters.py` | People: shared body grids + hair-style overlays, colored by a `Look` |
+| `portraits.py`  | 32×32 dialogue busts from a `Look` (talking/blinking frames)     |
 | `creatures.py`  | Enemies by id (`ENEMY_GENERATORS`, `ENEMY_IDLE_FRAMES`)          |
 | `items.py`      | Items by id (`ITEM_GENERATORS`)                                  |
+| `icons.py`      | Small UI sprites: interact bubble, continue arrow, laurel cursor |
 | `backdrops.py`  | Full-screen combat backdrop                                      |
+| `title.py`      | Title screen layers (sky, sea, headland, olive) and the logo     |
 
 - **Hand-drawn** sprites are text grids, one character per pixel, mapped
   through a palette; `.` is transparent. For symmetric sprites, store the left
   half and use `mirrored()`. `from_grid` raises on ragged rows.
 - **Procedural** sprites use `seeded(...)` RNGs so every run looks the same.
-- **New object:** add `def thing(w, h)` to `tiles.py`, register it in
-  `OBJECT_GENERATORS`, and add it to `OVERHEAD_OBJECTS` if characters walk
-  behind it.
-- **New NPC look:** set `color`, `hair` and `bearded` in the map JSON.
+- Light comes from the top-left; shadows fall to the bottom-right in one
+  translucent shadow color (`TileMap.SHADOW_COLOR`).
+- **New object:** add `def thing(w, h, variant=0)` to `structures.py` or
+  `nature.py`, plus a footprint/shadow function if it is sorted, and register
+  an `ObjectType` in `OBJECT_TYPES`.
+- **New NPC look:** set `color`, `hair`, `hair_style` (`short`, `tousled`,
+  `curly`, `elder`), `trim` and `bearded` in the map JSON. The same `Look`
+  drives the map sprite and the dialogue portrait. A new hair style needs map
+  overlays in `characters._HAIR` and a portrait overlay in `portraits._HAIR`.
 - **New enemy or item:** add a generator and register it. Unknown ids get a
   placeholder (enemies) or the `color` fallback (items).
 - Palettes are defined in the sprite modules; UI colors are in `settings.py`.

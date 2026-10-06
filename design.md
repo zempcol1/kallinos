@@ -148,21 +148,23 @@ bandit, bandit archer, raider hoplite. Bosses: raider captain; secret boss
 ## Tutorial reference *(implemented)*
 
 **Setting:** a fenced garden behind a house on the edge of Kyrillos, late
-afternoon, golden light. Landmarks: house, stone walls, fence, a mossy boulder
-beside a gnarled olive tree (Athena's), a fallen olive-wood branch.
+afternoon, golden light. Landmarks: house between terrace walls, fence, a fig
+tree and a fig bush, a mossy boulder beside a gnarled olive tree (Athena's), a
+fallen olive-wood branch. Cypresses, olives and an old plane tree outside.
 
 **Vátrachos (Βάτραχος):** a cat-sized marsh frog with amber eyes. Not a
 monster, just a very big frog. HP 18 · ATK 4 · DEF 1 · 10 XP.
 
 **Olive-Wood Branch:** `olive_branch`, weapon, +2 attack. A quiet divine seed.
 
-**Figs:** `figs`, consumable, heals 10 HP. Lying in the garden, teaches the
-Item command.
+**Figs:** `figs`, consumable, heals 10 HP. Picked from the fig tree and the
+fig bush (one handful each); teaches interacting and the Item command.
 
-**Beats:** fade in → Niko investigates the boulder and vanishes → *croak* →
-player explores → picks up the branch (auto-equips; the boulder is blocked
-without it) → frog reveal → combat (flee locked) → frog hops away → Niko drops
-from the tree → the olive tree shimmers → "Tutorial Complete" → village.
+**Beats:** fade in → Niko walks behind the boulder and vanishes → *croak* →
+player explores, picks figs → picks up the branch (auto-equips; the boulder is
+blocked without it) → frog reveal → combat (flee locked) → frog hops away →
+Niko drops out of the olive tree → the tree shimmers, golden motes rise →
+"Tutorial Complete" → village.
 
 ---
 
@@ -173,14 +175,22 @@ from the tree → the olive tree shimmers → "Tutorial Complete" → village.
   side view for combat.
 - **Logical sizes:** tiles 16×16, characters 16×24 (4 directions × 4 walk
   frames), scaled 3× (48px tiles); combat sprites 6×.
-- 1px dark outline on characters and props; light from the top-left.
+- 1px dark outline on characters and props; light from the top-left, so
+  shadows fall to the bottom-right in one translucent, cool shadow color.
+- Tall objects (trees, bushes, fences, boulders) are depth-sorted with
+  characters: you can walk behind them, and tree crowns fade while you do.
 - **Hybrid pipeline** *(planned)*: a PNG in `assets/images/` overrides the procedural
   sprite of the same id. PNG candidates: main cast, dialogue portraits, bosses.
   Character sheets use rows down/up/left/right and 4 columns of 16×24.
 
 ### World look
-- Whitewashed plaster, terracotta roofs, silvery-green olive trees, cypresses,
-  vines, marble columns. Painted temples: blue and gold accents.
+- Whitewashed plaster with blue shutters, terracotta roofs (curved cover tiles
+  with antefixes), dry-stone terrace walls with capers, silvery-green gnarled
+  olives, dark cypress flames, broad plane trees, fig trees with purple fruit,
+  myrtle/oleander/lavender bushes, marble columns. Painted temples: blue and
+  gold accents.
+- Characters share one body and differ by palette and hair style (short,
+  tousled, curly, elder); Kallinos has a tousled mop and a terracotta hem.
 - Underworld: dark stone, green/blue ghost light. Olympus: white, gold, clouds.
 - Planned: water and shoreline, animated tiles, time-of-day tint (golden
   afternoon, night raid), fire glow, particles (dust, leaves, embers).
@@ -212,12 +222,16 @@ blue = information/mana.
 
 ### UI
 - Translucent dark panels with a gold border; high contrast text.
-- Exploration HUD: location bar on top, controls hint on the bottom; planned
+- Exploration HUD: location on top, controls hint on the bottom (soft fading
+  bands); a bobbing speech bubble marks what E would interact with; planned
   HP and active-quest tracker.
 - Combat: enemy upper right with name and HP bar, player lower left, action
   menu bottom right, player panel bottom left, messages above the panels.
-- Dialogue: bottom box, speaker name in gold; planned typewriter text,
-  portraits and choices.
+- Dialogue: bottom box with a framed 32×32 portrait (mouth moves while text
+  types, eyes blink), speaker name on a tab, typewriter text, bobbing continue
+  arrow; narration has no portrait and sand-colored text. Planned: choices.
+- Title screen: an Aegean sunset (temple headland, Athena's olive, gulls,
+  glittering sea) under a gilded pixel logo; laurel cursor; fades in and out.
 - Fonts: pygame default for now; planned pixel font (check the license, e.g.
   Press Start 2P, OFL) and a Greek-key (meander) panel border.
 - Every input gets visible feedback.

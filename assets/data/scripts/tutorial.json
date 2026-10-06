@@ -2,11 +2,12 @@
   "enemy": "vatrachos",
   "required_item": "olive_branch",
   "trigger": "boulder_zone",
-  "pushback_tiles": 2,
+  "pushback_tiles": 1,
   "combat_hint": "Choose ATTACK to strike with your weapon.",
   "missing_npc": "niko",
-  "missing_npc_return": [12, 7],
-  "shimmer_object": "tree_canopy",
+  "missing_npc_path": [[17, 5], [17, 8]],
+  "missing_npc_return": [14, 9],
+  "shimmer_object": "athenas_olive",
   "shimmer_ms": 2000,
 
   "intro": [

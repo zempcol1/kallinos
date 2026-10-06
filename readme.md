@@ -24,8 +24,9 @@ python main.py
 
 ## What's playable
 
-- **Tutorial:** the garden, Niko's disappearance, the olive-wood branch, and a
-  turn-based fight with the Vátrachos (a very large frog).
+- **Tutorial:** the garden, Niko's disappearance, figs picked from the fig
+  trees, the olive-wood branch, and a turn-based fight with the Vátrachos (a
+  very large frog).
 - **Kyrillos village:** free roam and talking to villagers.
 
 Next up: persistent progress across maps, data-driven cutscenes and quests,

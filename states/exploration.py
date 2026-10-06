@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -13,12 +14,14 @@ from entities.enemy import Enemy, load_enemy_db
 from entities.item_pickup import ItemPickup
 from entities.npc import NPC
 from entities.player import Player
+from entities.prop import Prop
 from game.state_machine import State
 from story import MAP_SCRIPTS, MapScript
 from systems.camera import Camera
 from systems.inventory_system import load_item_db
 from systems.map_system import TileMap
-from ui.widgets import draw_panel, draw_text_box, font
+from systems.sprites import Look, interact_bubble
+from ui.widgets import draw_fade_strip, draw_shadowed_text, draw_text_box, font
 
 if TYPE_CHECKING:
     from game.game import Game
@@ -33,6 +36,9 @@ class Exploration(State):
 
     FADE_SPEED = 0.5      # Alpha per ms
     TOAST_MS = 2500
+    PROMPT_BOB_MS = 300   # interaction bubble bob period
+    PROMPT_LIFT = s.SCALED_TILE * 5 // 4   # bubble height above a prop's base
+    HUD_STRIP = 36        # height of the soft dark bands behind HUD text
 
     def __init__(self, game: Game) -> None:
         super().__init__(game)
@@ -43,6 +49,8 @@ class Exploration(State):
         self._item_db: dict = {}
         self._enemy_db: dict = {}
         self._script: MapScript | None = None
+        self._target: ItemPickup | Prop | NPC | None = None   # what E would use now
+        self._prompt_timer = 0.0
 
         self._toast_text = ""
         self._toast_expires = 0  # pygame ticks; wall-clock so it also expires under overlays
@@ -76,6 +84,7 @@ class Exploration(State):
         script_cls = MAP_SCRIPTS.get(self.tile_map.script, MapScript)
         self._script = script_cls(self)
 
+        self._target = None
         self._toast_text = ""
         self._toast_expires = 0
         self._fade_alpha = 255
@@ -97,7 +106,14 @@ class Exploration(State):
 
     def push_dialogue(self, lines: list[tuple[str, str]], on_complete: str | None = None) -> None:
         """Show dialogue; ``on_complete`` is passed back to the script when it ends."""
-        self._push("dialogue", {"lines": lines, "on_complete": on_complete})
+        self._push("dialogue", {"lines": lines, "on_complete": on_complete,
+                                "looks": self._speaker_looks()})
+
+    def _speaker_looks(self) -> dict[str, Look]:
+        """Speaker name -> Look, so the dialogue box can show their portraits."""
+        looks = {npc.name: npc.look for npc in self._npcs}
+        looks[self.player.name] = self.player.look
+        return looks
 
     def start_combat(self, enemy_id: str, can_flee: bool = True, hint: str | None = None) -> None:
         self._push("combat", {
@@ -141,26 +157,44 @@ class Exploration(State):
             if event.key in (pygame.K_e, pygame.K_RETURN) and self._script.allows_control():
                 self._try_interact()
 
-    def _try_interact(self) -> None:
-        """Pick up an item or talk to an NPC in reach."""
-        pr = self.player.rect
-
+    def _find_target(self) -> ItemPickup | Prop | NPC | None:
+        """The pickup under the player, or the fig tree / person they face."""
+        feet, reach = self.player.rect, self.player.reach_rect()
         for pickup in self._pickups:
-            if not pickup.collected and pr.colliderect(pickup.rect.inflate(20, 20)):
-                item_data = self._item_db.get(pickup.item_id)
-                if item_data:
-                    self.player.inventory.add_item(dict(item_data))
-                    if item_data.get("type") == "weapon":
-                        self.player.inventory.equip_weapon(item_data["id"])
-                    pickup.collected = True
-                    self.show_toast(f"Picked up {item_data['name']}")
-                return
-
+            if not pickup.collected and pickup.interaction_rect().colliderect(feet):
+                return pickup
+        for prop in self.tile_map.props:
+            if prop.can_harvest and reach.colliderect(prop.interaction_rect()):
+                return prop
         for npc in self._npcs:
-            if npc.visible and npc.dialogue_idle and pr.colliderect(npc.interaction_rect()):
-                npc.face_towards(self.player.x, self.player.y)
-                self.push_dialogue([(npc.name, line) for line in npc.dialogue_idle])
-                return
+            if npc.visible and npc.dialogue_idle and reach.colliderect(npc.interaction_rect()):
+                return npc
+        return None
+
+    def _try_interact(self) -> None:
+        """Pick up, harvest or talk to whatever is in reach."""
+        target = self._find_target()
+        if isinstance(target, ItemPickup):
+            item_data = self._give_item(target.item_id)
+            if item_data:
+                target.collected = True
+                self.show_toast(f"Picked up {item_data['name']}")
+        elif isinstance(target, Prop):
+            item_data = self._give_item(target.pick())
+            if item_data:
+                self.show_toast(target.harvest_text or f"Picked {item_data['name']}")
+        elif isinstance(target, NPC):
+            target.face_towards(self.player.x, self.player.y)
+            self.push_dialogue([(target.name, line) for line in target.dialogue_idle])
+
+    def _give_item(self, item_id: str | None) -> dict | None:
+        """Add an item to the inventory (equipping weapons); returns its data."""
+        item_data = self._item_db.get(item_id)
+        if item_data:
+            self.player.inventory.add_item(dict(item_data))
+            if item_data.get("type") == "weapon":
+                self.player.inventory.equip_weapon(item_data["id"])
+        return item_data
 
     def update(self, dt: float) -> None:
         if self._fading_in:
@@ -183,13 +217,25 @@ class Exploration(State):
 
         if self._script.allows_control():
             keys = pygame.key.get_pressed()
-            self.player.handle_input(keys, dt, self.tile_map.collisions)
+            # NPCs block, except one already overlapping the player (no getting stuck)
+            feet = self.player.rect
+            blockers = [npc.rect for npc in self._npcs
+                        if npc.visible and not npc.rect.colliderect(feet)]
+            self.player.handle_input(keys, dt, self.tile_map.collisions + blockers)
+            self._target = self._find_target()
         else:
             self.player.stop()
+            self._target = None
+        self._prompt_timer += dt
 
+        sprite_rect, feet_y = self.player.sprite_rect, self.player.depth
+        for prop in self.tile_map.props:
+            prop.update_fade(sprite_rect, feet_y)
         self._camera.follow(self.player.x, self.player.y)
         for pickup in self._pickups:
             pickup.update(dt)
+        for npc in self._npcs:
+            npc.update(dt)
         self._script.update(dt)
 
     # ── Rendering ────────────────────────────────────────────────────────────
@@ -202,13 +248,15 @@ class Exploration(State):
         surface.fill(s.COLOR_BLACK)
         self.tile_map.render(surface, cam_x, cam_y)
 
-        # Entities, back-to-front so lower ones overlap higher ones
-        entities = [*self._pickups, *self._npcs, self.player]
-        for entity in sorted(entities, key=lambda e: e.rect.bottom):
+        # Props and characters back-to-front, so lower ones overlap higher ones
+        entities = [*self.tile_map.props, *self._pickups, *self._npcs, self.player]
+        for entity in sorted(entities, key=lambda e: e.depth):
             entity.render(surface, cam_x, cam_y)
 
         self.tile_map.render_overhead(surface, cam_x, cam_y)
         self._script.render(surface, cam_x, cam_y)
+        if self._target is not None and self.game.state_machine.current is self:
+            self._render_prompt(surface, cam_x, cam_y)
         self._render_hud(surface)
 
         if self._toast_text and pygame.time.get_ticks() < self._toast_expires:
@@ -221,16 +269,34 @@ class Exploration(State):
             fade_surf.set_alpha(self._fade_alpha)
             surface.blit(fade_surf, (0, 0))
 
-    def _render_hud(self, surface: pygame.Surface) -> None:
-        # Location bar at top
-        draw_panel(surface, pygame.Rect(0, 0, s.SCREEN_WIDTH, 24), fill=(0, 0, 0, 120),
-                   border=None)
-        loc_surf = font(22).render(self.tile_map.display_name, True, s.COLOR_WHITE)
-        surface.blit(loc_surf, (10, 4))
+    def _render_prompt(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
+        """A bobbing speech bubble over whatever E would interact with."""
+        target = self._target
+        if isinstance(target, NPC):
+            anchor = target.sprite_rect.midtop
+        elif isinstance(target, Prop):
+            anchor = (target.interaction_rect().centerx, target.depth - self.PROMPT_LIFT)
+        else:
+            anchor = target.rect.midtop
+        bubble = interact_bubble()
+        bob = round(math.sin(self._prompt_timer / self.PROMPT_BOB_MS)) * s.SCALE
+        surface.blit(bubble, bubble.get_rect(midbottom=(anchor[0] - cam_x,
+                                                        anchor[1] - cam_y + bob)))
 
-        # Controls hint
-        draw_panel(surface, pygame.Rect(0, s.SCREEN_HEIGHT - 20, s.SCREEN_WIDTH, 20),
-                   fill=(0, 0, 0, 100), border=None)
-        hint = "[WASD/Arrows] Move  [E/Enter] Interact  [ESC] Menu"
-        hint_surf = font(22).render(hint, True, s.COLOR_TEXT_DIM)
-        surface.blit(hint_surf, (10, s.SCREEN_HEIGHT - 18))
+    def _render_hud(self, surface: pygame.Surface) -> None:
+        # Location, top-left, with a gold diamond
+        draw_fade_strip(surface, pygame.Rect(0, 0, s.SCREEN_WIDTH, self.HUD_STRIP))
+        x, y = 14, 8
+        cy = y + 8
+        pygame.draw.polygon(surface, s.COLOR_ACCENT_GOLD,
+                            [(x, cy - 5), (x + 5, cy), (x, cy + 5), (x - 5, cy)])
+        draw_shadowed_text(surface, self.tile_map.display_name, font(24), (x + 12, y))
+
+        # Controls hint, only while the player is in control (not under dialogue)
+        if self.game.state_machine.current is not self or not self._script.allows_control():
+            return
+        draw_fade_strip(surface, pygame.Rect(0, s.SCREEN_HEIGHT - self.HUD_STRIP,
+                                             s.SCREEN_WIDTH, self.HUD_STRIP), fade_down=False)
+        hint = "WASD / Arrows  move      E / Enter  interact      Esc  menu"
+        draw_shadowed_text(surface, hint, font(22), (14, s.SCREEN_HEIGHT - 22),
+                           s.COLOR_TEXT_DIM)

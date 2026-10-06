@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pygame
 
+import settings as s
 from systems.sprites.characters import Look
 from systems.sprites.pixel_art import Color, cached, from_grid, mirrored, scale, shade
 
@@ -145,8 +146,9 @@ def _set(rows: list[str], y: int, cols: tuple[int, ...], ch: str) -> None:
 
 
 @cached
-def portrait(look: Look, talking: bool = False, blinking: bool = False) -> pygame.Surface:
-    """Scaled bust of a character for the dialogue box."""
+def portrait(look: Look, talking: bool = False, blinking: bool = False,
+             factor: int = s.SCALE) -> pygame.Surface:
+    """Bust of a character for the dialogue box, scaled by ``factor``."""
     rows = list(_FACE)
     if blinking:
         for y, ch in zip(_EYE_ROWS, "seS"):
@@ -165,4 +167,4 @@ def portrait(look: Look, talking: bool = False, blinking: bool = False) -> pygam
         "M": (92, 40, 40),
     }
     palette["m"] = shade(look.skin, -0.3)
-    return scale(from_grid(rows, palette))
+    return scale(from_grid(rows, palette), factor)

@@ -13,6 +13,7 @@ from states.dialogue import Dialogue
 from states.combat import Combat
 from states.game_over import GameOver
 from states.title_card import TitleCard
+from systems.sprites import app_icon
 
 
 class Game:
@@ -20,6 +21,7 @@ class Game:
 
     def __init__(self) -> None:
         pygame.init()
+        pygame.display.set_icon(app_icon(s.ICON_SIZE))
         self.screen = pygame.display.set_mode((s.SCREEN_WIDTH, s.SCREEN_HEIGHT))
         pygame.display.set_caption(s.GAME_TITLE)
         self.clock = pygame.time.Clock()

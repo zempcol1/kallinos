@@ -13,6 +13,18 @@ pip install pygame-ce
 python main.py
 ```
 
+## Windows executable
+
+To get a single `Kallinos.exe` that runs on any Windows PC without Python:
+
+```bash
+pip install pygame-ce pyinstaller
+python build_exe.py
+```
+
+The game is written to `dist/Kallinos.exe`; copy it anywhere and double-click.
+Rebuild after changing the game.
+
 ## Controls
 
 | Key           | Action                       |

@@ -1,6 +1,7 @@
 """Global constants and configuration for Kallinos."""
 
 import os
+import sys
 
 # ── Display ──────────────────────────────────────────────────────────────────
 SCREEN_WIDTH = 800
@@ -18,9 +19,11 @@ PLAYER_SPEED = 120      # Pixels per second (at scale)
 WALK_FRAME_MS = 150     # Walk-cycle frame duration (design.md)
 TEXT_SPEED_CPS = 45     # Dialogue typewriter speed, characters per second
 COMBAT_SCALE = 6        # Sprite scale in the combat view (2× exploration)
+ICON_SIZE = 64          # Window icon size in pixels
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# A bundled build (build_exe.py) unpacks the code and assets into sys._MEIPASS
+BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
 IMAGES_DIR = os.path.join(ASSETS_DIR, "images")

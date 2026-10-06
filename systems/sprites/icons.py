@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pygame
 
-from systems.sprites.pixel_art import cached, from_grid, scale
+from systems.sprites.characters import PLAYER_LOOK
+from systems.sprites.pixel_art import cached, from_grid, lerp, scale
+from systems.sprites.portraits import PORTRAIT_SIZE, portrait
 
 _PALETTE = {
     "o": (40, 28, 24),
@@ -66,3 +68,27 @@ def laurel(flip: bool = False) -> pygame.Surface:
     """Gold laurel sprig framing the selected menu option."""
     surf = from_grid(_LAUREL, _PALETTE)
     return scale(pygame.transform.flip(surf, True, False) if flip else surf)
+
+
+_ICON_SKY = ((44, 28, 78), (148, 66, 108), (232, 128, 88), (250, 192, 122))
+_ICON_FRAME = (176, 128, 30)
+
+
+@cached
+def app_icon(size: int) -> pygame.Surface:
+    """Kallinos against a sunset in a gold frame: the window and .exe icon."""
+    n = PORTRAIT_SIZE
+    surf = pygame.Surface((n, n), pygame.SRCALPHA)
+    for y in range(n):
+        t = y / (n - 1) * (len(_ICON_SKY) - 1)
+        i = min(int(t), len(_ICON_SKY) - 2)
+        pygame.draw.line(surf, lerp(_ICON_SKY[i], _ICON_SKY[i + 1], t - i), (0, y), (n, y))
+    surf.blit(portrait(PLAYER_LOOK, factor=1), (0, 1))
+    # Round the corners, then frame in gold
+    shape = pygame.Surface((n, n), pygame.SRCALPHA)
+    pygame.draw.rect(shape, (255, 255, 255, 255), shape.get_rect(), border_radius=6)
+    surf.blit(shape, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+    pygame.draw.rect(surf, _ICON_FRAME, surf.get_rect(), 1, border_radius=6)
+    if size % n == 0:
+        return pygame.transform.scale(surf, (size, size))   # crisp pixels
+    return pygame.transform.smoothscale(surf, (size, size))

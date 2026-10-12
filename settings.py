@@ -8,7 +8,7 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 FPS = 60
 GAME_TITLE = "Kallinos — Rise of a Mortal"
-GAME_VERSION = "v0.1"
+GAME_VERSION = "v0.1.2"
 START_MAP = "tutorial"
 
 # ── Tile / Map ───────────────────────────────────────────────────────────────

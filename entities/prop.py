@@ -35,7 +35,8 @@ class Prop:
         self._kind = kind
         self._args = (links,) if kind.tiled else (data["w"], data["h"])
         self._variant: int = data.get("variant", 0)
-        self._sprite = kind.draw(*self._args, self._variant)
+        self._options = {key: data[key] for key in kind.options if key in data}
+        self._sprite = kind.draw(*self._args, self._variant, **self._options)
         self._faded_sprite: pygame.Surface | None = None
 
     @property
@@ -51,7 +52,7 @@ class Prop:
         if not self.can_harvest:
             return None
         self.harvested = True
-        self._sprite = self._kind.draw(*self._args, self._variant, ripe=False)
+        self._sprite = self._kind.draw(*self._args, self._variant, ripe=False, **self._options)
         self._faded_sprite = None
         return self.harvest
 

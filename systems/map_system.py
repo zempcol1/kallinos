@@ -9,11 +9,12 @@ import pygame
 import settings as s
 from entities.prop import Prop
 from systems.sprites import (
-    OBJECT_TYPES, OVERHEAD, SORTED, dirt_path, grass, missing_tile, scale,
+    OBJECT_TYPES, OVERHEAD, SORTED, dirt_path, earth, grass, missing_tile, scale,
 )
 
 TILE_GRASS = 0
 TILE_PATH = 1
+TILE_EARTH = 2
 
 
 class TileMap:
@@ -53,6 +54,11 @@ class TileMap:
         self.pixel_width = self.width * s.SCALED_TILE
         self.pixel_height = self.height * s.SCALED_TILE
 
+        # Invisible walls just outside the map edges
+        w, h, t = self.pixel_width, self.pixel_height, s.SCALED_TILE
+        self.collisions += [pygame.Rect(-t, -t, w + 2 * t, t), pygame.Rect(-t, h, w + 2 * t, t),
+                            pygame.Rect(-t, 0, t, h), pygame.Rect(w, 0, t, h)]
+
         self.props: list[Prop] = []
         self._ground_layer = pygame.Surface((self.pixel_width, self.pixel_height), pygame.SRCALPHA)
         self._overhead_layer: pygame.Surface | None = None
@@ -88,18 +94,21 @@ class TileMap:
 
     def _ground_sprite(self, col: int, row: int) -> pygame.Surface:
         tile_id = self.ground[row][col]
+        # Deterministic per-position variety
+        h = (col * 73856093) ^ (row * 19349663)
         if tile_id == TILE_GRASS:
-            # Deterministic per-position variety; flowers are rarer
-            h = (col * 73856093) ^ (row * 19349663)
-            variant = 3 if h % 11 == 0 else h % 3
+            # Flowers and dry bare spots are the rarer variants
+            variant = 3 if h % 11 == 0 else 4 if h % 13 == 0 else h % 3
             return grass(variant)
+        # Paths and earth get a grass fringe on sides bordering grass
+        edges = tuple(
+            self._tile_id(col + dc, row + dr) == TILE_GRASS
+            for dc, dr in ((0, -1), (1, 0), (0, 1), (-1, 0))
+        )
         if tile_id == TILE_PATH:
-            # Grass fringe on sides bordering grass (map edges count as path)
-            edges = tuple(
-                self._tile_id(col + dc, row + dr) == TILE_GRASS
-                for dc, dr in ((0, -1), (1, 0), (0, 1), (-1, 0))
-            )
             return dirt_path(edges)
+        if tile_id == TILE_EARTH:
+            return earth(edges, h % 4)
         return missing_tile()
 
     def _placements(self) -> list[tuple[dict, tuple[bool, ...] | None]]:
@@ -162,12 +171,13 @@ class TileMap:
             if obj.get("solid", True):
                 self.collisions.extend(footprints)
 
+            options = {key: obj[key] for key in kind.options if key in obj}
             if kind.layer == SORTED:
                 self.props.append(Prop(obj, kind, dest, footprints, links))
             elif kind.layer == OVERHEAD:
-                overhead.append((kind.draw(*geometry, variant), dest))
+                overhead.append((kind.draw(*geometry, variant, **options), dest))
             else:
-                ground.blit(kind.draw(*geometry, variant), dest)
+                ground.blit(kind.draw(*geometry, variant, **options), dest)
 
         ground.blit(scale(shadows), (0, 0))
         if overhead:

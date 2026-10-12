@@ -1,4 +1,4 @@
-"""Plants and rocks: olive, cypress, plane and fig trees, bushes, boulders.
+"""Plants and rocks: olive, cypress, plane, pine and fig trees, bushes, boulders.
 
 Trees are one sprite each (trunk and crown together) and are drawn
 depth-sorted with characters, so the player can walk behind them. Each
@@ -22,28 +22,26 @@ T = s.TILE_SIZE
 OUTLINE = (45, 34, 28)
 
 # ── Palette ──────────────────────────────────────────────────────────────────
-OLIVE_LEAF = (118, 140, 92)
-OLIVE_LEAF_DARK = (76, 98, 64)
-OLIVE_LEAF_DEEP = (58, 76, 52)
-OLIVE_LEAF_LIGHT = (164, 182, 136)
-OLIVE_SILVER = (198, 208, 178)
-OLIVE_FRUIT = (66, 52, 74)
-OLIVE_BARK = (128, 112, 94)
-OLIVE_BARK_DARK = (86, 72, 60)
-OLIVE_BARK_LIGHT = (164, 150, 126)
+OLIVE_LEAVES = (  # deep shade → silver tips
+    (44, 60, 44), (70, 92, 58), (104, 126, 78), (146, 164, 104), (192, 202, 150),
+)
+OLIVE_FRUIT = (60, 40, 64)
+OLIVE_FRUIT_GREEN = (150, 158, 78)
+OLIVE_BARK = (160, 132, 96)
+OLIVE_BARK_DARK = (106, 84, 60)
+OLIVE_BARK_DEEP = (66, 50, 38)
+OLIVE_BARK_LIGHT = (206, 180, 134)
 
 CYPRESS = (52, 86, 58)
 CYPRESS_DARK = (34, 60, 44)
 CYPRESS_LIGHT = (84, 122, 74)
 
-PLANE_LEAF = (104, 150, 70)
-PLANE_LEAF_DARK = (66, 108, 52)
-PLANE_LEAF_DEEP = (48, 82, 44)
-PLANE_LEAF_LIGHT = (150, 188, 96)
-PLANE_BARK = (150, 142, 118)
-PLANE_BARK_DARK = (102, 96, 78)
-PLANE_BARK_PATCH = (204, 198, 166)
-PLANE_BARK_OLIVE = (124, 124, 84)
+PLANE_LEAVES = ((36, 62, 38), (58, 94, 48), (90, 132, 62), (136, 172, 84), (184, 206, 120))
+PLANE_BARK = ((196, 190, 158), (148, 144, 116), (100, 98, 78), (62, 60, 48))
+PLANE_PATCHES = ((224, 216, 180), (110, 118, 90), (156, 126, 84), (128, 132, 100))
+
+PINE_NEEDLES = ((38, 62, 40), (62, 96, 50), (104, 138, 64), (150, 178, 88), (198, 212, 130))
+PINE_BARK = ((196, 150, 112), (150, 104, 80), (98, 66, 54), (62, 42, 36))
 
 FIG_LEAF = (96, 146, 64)
 FIG_LEAF_DARK = (62, 104, 50)
@@ -175,59 +173,164 @@ def _limb_clumps(rng: random.Random, top: tuple[int, int], crown: pygame.Rect, l
     return result
 
 
+# ── Twisting trunks and leaf tufts (olive, pine) ─────────────────────────────
+
+Strand = list[tuple[float, float, float]]   # (x, y, width) from the base up
+
+
+def _strand(surf: pygame.Surface, points: Strand,
+            bark: tuple[Color, Color, Color, Color]) -> None:
+    """One twisting trunk strand, lit on its left edge and shaded on its right.
+
+    Several overlapping strands drawn back to front read as a braided,
+    gnarled olive trunk. Bark is (light, mid, dark, deep).
+    """
+    light, mid, dark, deep = bark
+    for (x0, y0, w0), (x1, y1, w1) in zip(points, points[1:]):
+        rows = max(1, round(abs(y1 - y0)))
+        for i in range(rows + 1):
+            t = i / rows
+            x, y, w = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, w0 + (w1 - w0) * t
+            left, right = round(x - w / 2), round(x + w / 2)
+            row = round(y)
+            pygame.draw.line(surf, mid, (left, row), (right, row))
+            pygame.draw.line(surf, dark, (right - max(1, round(w / 3)), row), (right, row))
+            surf.set_at((right, row), deep)
+            surf.set_at((left, row), light)
+            if w > 4:
+                surf.set_at((left + 1, row), light)
+
+
+def _leafy_clump(surf: pygame.Surface, rng: random.Random, center: tuple[float, float],
+                 radii: tuple[float, float], tones: tuple[Color, ...],
+                 leaf: list[str] | None = None) -> None:
+    """A rounded mass of small leaves: serrated edge, shadow below, lit top-left.
+
+    ``tones`` runs from deep shade to the brightest leaf tips (5 colors).
+    ``leaf`` (a small grid, ``l`` leaf / ``v`` vein) stamps whole leaves on the
+    lit side, for big-leaved trees like the plane.
+    """
+    deep, dark, mid, light, tip = tones
+    cx, cy = center
+    rx, ry = radii
+    # Serrated silhouette: leaf points sticking out all around the edge
+    steps = int((rx + ry) * 1.6)
+    for i in range(steps):
+        a = math.tau * i / steps + rng.uniform(-0.1, 0.1)
+        ex, ey = cx + math.cos(a) * rx, cy + math.sin(a) * ry
+        length = rng.uniform(1, 2.4)
+        color = dark if math.sin(a) > 0.2 else (mid if math.sin(a) > -0.6 else light)
+        pygame.draw.line(surf, color, (round(ex), round(ey)),
+                         (round(ex + math.cos(a) * length), round(ey + math.sin(a) * length)))
+    body = pygame.Rect(0, 0, round(rx * 2), round(ry * 2))
+    body.center = (round(cx), round(cy))
+    pygame.draw.ellipse(surf, dark, body)
+    pygame.draw.ellipse(surf, deep, (body.x + 1, body.centery, body.w - 1, body.h // 2 + 1))
+    pygame.draw.ellipse(surf, dark, body.inflate(-2, -3).move(0, -1))
+    pygame.draw.ellipse(surf, mid, body.inflate(-round(rx * 0.5), -round(ry * 0.6)).move(-1, -2))
+    glow = pygame.Rect(0, 0, round(rx * 0.9), round(ry * 0.7))
+    glow.center = (round(cx - rx * 0.3), round(cy - ry * 0.4))
+    pygame.draw.ellipse(surf, light, glow)
+    # Individual leaves: light flecks up top, dark separations below
+    for _ in range(int(rx * ry * 0.9)):
+        x = cx + rng.uniform(-rx, rx) * 0.9
+        y = cy + rng.uniform(-ry, ry) * 0.9
+        if ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 > 0.8:
+            continue
+        upper = (x - cx) / rx * 0.4 + (y - cy) / ry < -0.1
+        if upper:
+            color, dx = (tip if rng.random() < 0.5 else light), 1
+        else:
+            color, dx = (deep if (y - cy) > ry * 0.3 else dark), -1
+        surf.set_at((round(x), round(y)), color)
+        surf.set_at((round(x) + dx, round(y) - 1), color)
+    if leaf:
+        for _ in range(int(rx * ry * 0.06) + 1):
+            x = cx + rng.uniform(-rx * 0.7, rx * 0.3)
+            y = cy + rng.uniform(-ry * 0.8, 0)
+            stamp(surf, leaf, {"l": rng.choice((light, tip)), "v": mid},
+                  (round(x) - len(leaf[0]) // 2, round(y) - len(leaf) // 2))
+
+
 # ── Olive tree ───────────────────────────────────────────────────────────────
-
-_OLIVE_TONES = (OLIVE_LEAF_DEEP, OLIVE_LEAF_DARK, OLIVE_LEAF, OLIVE_LEAF_LIGHT)
-_OLIVE_STROKES = [
-    (OLIVE_SILVER, OLIVE_LEAF_LIGHT, ((0, 0), (1, 0))),
-    (OLIVE_LEAF_LIGHT, OLIVE_LEAF, ((0, 0), (1, 0))),
-    (OLIVE_LEAF_LIGHT, OLIVE_LEAF, ((0, 0),)),
-    (OLIVE_LEAF_DARK, OLIVE_LEAF, ((0, 0), (1, 0))),
-    (OLIVE_LEAF_DEEP, OLIVE_LEAF_DARK, ((0, 0),)),
-]
-
 
 @cached
 def olive_tree(w: int = 3, h: int = 3, variant: int = 0) -> pygame.Surface:
-    """Gnarled olive: a twisted grey trunk forking into silvery leaf clumps."""
+    """Old olive: a braided, hollow trunk under a silvery crown of leaf sprays."""
     surf = _canvas(w, h)
     pw, ph = surf.get_size()
     rng = seeded("olive", w, h, variant)
-    bark = (OLIVE_BARK, OLIVE_BARK_DARK, OLIVE_BARK_LIGHT)
+    k = pw / (3 * T)                      # proportions are designed for a 3×3 tree
+    bark = (OLIVE_BARK_LIGHT, OLIVE_BARK, OLIVE_BARK_DARK, OLIVE_BARK_DEEP)
+    bx, by = pw / 2 + rng.uniform(-2, 2), ph - 3
+    lean = rng.choice((-1, 1))
+    spread = rng.uniform(0.85, 1.15)
 
-    base = (pw // 2 + rng.randint(-2, 2), ph - 3)
-    trunk_h = int(ph * 0.4)
-    lean = rng.choice((-1, 1)) * rng.uniform(1.5, 3.5)
-    top = _trunk(surf, rng, base, trunk_h, (6 + w, 5), lean, 1.5, bark)
+    # Flared roots gripping the ground
+    for dx in (-9, -6, 6, 9):
+        pygame.draw.line(surf, OLIVE_BARK_DARK, (bx, by - 2), (bx + dx * k, by + 1), 2)
+        pygame.draw.line(surf, OLIVE_BARK, (bx, by - 3), (bx + dx * k, by), 1)
 
-    # Olive trunks twist and split: a hollow and a few spiralling fissures
-    hollow = pygame.Rect(0, 0, 3, 5)
-    hollow.center = (base[0] + int(lean / 3), base[1] - trunk_h // 3)
-    pygame.draw.ellipse(surf, shade(OLIVE_BARK_DARK, -0.25), hollow)
+    # Two or three strands twist around each other and fork into limbs
+    left_end = (bx - 13 * k * spread, by - 25 * k)
+    right_end = (bx + 12 * k * spread, by - 27 * k)
+    strands = [
+        [(bx + 3 * k, by, 8 * k), (bx + 1 * k, by - 7 * k, 6 * k),
+         (bx + 4 * k * lean, by - 15 * k, 5 * k), (*right_end, 3)],
+        [(bx - 3 * k, by, 8 * k), (bx - 2 * k, by - 8 * k, 6 * k),
+         (bx - 6 * k * lean, by - 16 * k, 4 * k), (*left_end, 3)],
+    ]
+    if variant % 2 == 0:
+        strands.insert(1, [(bx, by - 1, 6 * k), (bx - 1 * k * lean, by - 11 * k, 4 * k),
+                           (bx + 2 * k, by - 21 * k, 3 * k), (bx + rng.uniform(-3, 3),
+                                                             by - 30 * k, 2)])
+    for strand in strands:
+        _strand(surf, strand, bark)
+    # The hollow where the strands part, and spiral fissures
+    hollow = pygame.Rect(0, 0, round(4 * k), round(6 * k))
+    hollow.center = (round(bx), round(by - 12 * k))
+    pygame.draw.ellipse(surf, OLIVE_BARK_DEEP, hollow)
+    pygame.draw.line(surf, OLIVE_BARK_DARK, hollow.topright, hollow.bottomright)
     for i in range(3):
-        x = base[0] - 2 + i * 2
-        y0 = base[1] - rng.randint(1, 3)
-        pygame.draw.line(surf, OLIVE_BARK_DARK, (x, y0), (x + int(lean / 2), y0 - trunk_h // 2))
+        y0 = by - rng.uniform(1, 6) * k
+        x0 = bx + (i - 1) * 3 * k
+        pygame.draw.line(surf, OLIVE_BARK_DARK, (x0, y0), (x0 - 2 * lean, y0 - 5 * k))
 
-    crown = pygame.Rect(3, 3, pw - 6, int(ph * 0.6))
-    clumps = _limb_clumps(rng, top, crown, 2 + w // 3, (9, 12 + w))
-    for end, _ in clumps:
-        mid = ((top[0] + end[0]) // 2 + rng.randint(-1, 1), (top[1] + end[1]) // 2)
-        _limb(surf, top, mid, 3, OLIVE_BARK, OLIVE_BARK_DARK)
-        _limb(surf, mid, end, 2, OLIVE_BARK, OLIVE_BARK_DARK)
-    for _, rect in clumps:
-        _clump(surf, rect, _OLIVE_TONES)
-    _texture(surf, rng, crown.inflate(4, 4), pw * ph // 6, _OLIVE_STROKES)
+    # Crown: small leaf clumps on branch tips around a loose dome, with gaps
+    # where the twisting limbs show through. Anchors are (dx, dy, radius)
+    # relative to the trunk base, designed for a 3×3 tree.
+    anchors = [(-15, -24, 5.5), (-10, -33, 6), (-1, -38, 6), (9, -34, 6), (15, -25, 5.5),
+               (3, -27, 4.5)]
+    if w >= 4:
+        anchors += [(-21, -29, 4.5), (20, -31, 4.5), (-5, -44, 5)]
+    clumps = []
+    for dx, dy, r in anchors:
+        jx, jy = rng.uniform(-2, 2), rng.uniform(-1.5, 1.5)
+        rx, ry = r * k, r * k * 0.8
+        x = max(rx + 3, min(pw - rx - 3, bx + (dx + jx) * k * spread))
+        y = max(ry + 3, by + (dy + jy) * k)
+        clumps.append((x, y, rx, ry))
+    fork = (bx, by - 16 * k)
+    for x, y, _, _ in clumps:
+        limb = left_end if x < bx else right_end
+        mid = ((limb[0] + x) / 2, (limb[1] + y) / 2 + 2)
+        pygame.draw.lines(surf, OLIVE_BARK_DARK, False, [fork, limb, mid, (x, y + 2)], 2)
+        pygame.draw.lines(surf, OLIVE_BARK, False, [limb, mid, (x - 1, y + 1)], 1)
+    for x, y, rx, ry in sorted(clumps, key=lambda c: c[1]):
+        _leafy_clump(surf, rng, (x, y), (rx, ry), OLIVE_LEAVES)
 
-    for _ in range(2 + w):
-        _, rect = rng.choice(clumps)
-        surf.set_at((rect.centerx + rng.randint(-2, 2), rect.bottom - 2), OLIVE_FRUIT)
+    # Olives hang on the undersides of the clumps
+    for cx, cy, rx, ry in clumps:
+        for _ in range(2):
+            x = round(cx + rng.uniform(-rx, rx) * 0.6)
+            y = round(cy + ry * rng.uniform(0.3, 0.7))
+            surf.set_at((x, y), OLIVE_FRUIT if rng.random() < 0.7 else OLIVE_FRUIT_GREEN)
     return scale(outline(surf, OUTLINE))
 
 
 def olive_tree_footprint(w: int, h: int) -> list[tuple[int, int, int, int]]:
     pw, ph = w * T, h * T
-    return [(pw // 2 - 5, ph - 7, 10, 5)]
+    return [(pw // 2 - 6, ph - 7, 12, 5)]
 
 
 def tree_shadow(w: int, h: int, variant: int = 0) -> list[tuple[str, tuple[int, int, int, int]]]:
@@ -248,7 +351,7 @@ def cypress(w: int = 2, h: int = 4, variant: int = 0) -> pygame.Surface:
     cx = pw // 2
     base_y = ph - 3
     top_y = 1
-    max_half = pw // 2 - 3 + rng.randint(0, 1)
+    max_half = min(pw // 2 - 3, round(ph * 0.14)) + rng.randint(0, 1)
 
     # Stubby trunk under the foliage
     pygame.draw.rect(surf, OLIVE_BARK_DARK, (cx - 1, base_y - 4, 3, 5))
@@ -276,7 +379,7 @@ def cypress(w: int = 2, h: int = 4, variant: int = 0) -> pygame.Surface:
         lit = x < cx + rng.randint(-2, 1)
         color = CYPRESS_LIGHT if lit else CYPRESS_DARK
         for dx in range(rng.randint(1, 3)):
-            if surf.get_at((x + dx, y)).a:
+            if x + dx < pw and surf.get_at((x + dx, y)).a:
                 surf.set_at((x + dx, y), color)
         if lit and surf.get_at((x, y + 1)).a:
             surf.set_at((x, y + 1), CYPRESS)
@@ -293,51 +396,128 @@ def cypress_shadow(w: int, h: int, variant: int = 0) -> list[tuple[str, tuple[in
     return [("ellipse", (pw // 2 - 5, ph - 7, 14, 6))]
 
 
-# ── Plane tree (platanos) ────────────────────────────────────────────────────
+# ── Oriental plane (platanos) ────────────────────────────────────────────────
 
-_PLANE_TONES = (PLANE_LEAF_DEEP, PLANE_LEAF_DARK, PLANE_LEAF, PLANE_LEAF_LIGHT)
-_PLANE_STROKES = [
-    (PLANE_LEAF_LIGHT, PLANE_LEAF, ((0, 0), (1, 0), (0, -1))),
-    (shade(PLANE_LEAF_LIGHT, 0.3), PLANE_LEAF_LIGHT, ((0, 0), (1, 0))),
-    (PLANE_LEAF_DARK, PLANE_LEAF, ((0, 0), (1, 1))),
-    (PLANE_LEAF_DEEP, PLANE_LEAF_DARK, ((0, 0), (1, 0))),
+_PLANE_LEAF = [  # a palmate plane leaf
+    "l.l.l",
+    "lllll",
+    ".lvl.",
+    "..v..",
 ]
 
 
 @cached
-def plane_tree(w: int = 5, h: int = 5, variant: int = 0) -> pygame.Surface:
-    """The great village plane tree: mottled bark under a vast green crown."""
+def plane_tree(w: int = 6, h: int = 6, variant: int = 0) -> pygame.Surface:
+    """Oriental plane: a massive mottled trunk under a vast, broad crown."""
     surf = _canvas(w, h)
     pw, ph = surf.get_size()
     rng = seeded("plane", w, h, variant)
-    bark = (PLANE_BARK, PLANE_BARK_DARK, shade(PLANE_BARK, 0.2))
+    k = pw / (6 * T)                      # designed for a 6×6 tree
+    bx, by = pw / 2 + rng.uniform(-3, 3), ph - 4
 
-    base = (pw // 2, ph - 3)
-    trunk_h = int(ph * 0.45)
-    top = _trunk(surf, rng, base, trunk_h, (w * 2 + 4, 8), rng.uniform(-2, 2), 1.0, bark)
+    # Buttressed base, then a short massive trunk splitting into great limbs
+    for dx in (-18, -12, 12, 18):
+        pygame.draw.line(surf, PLANE_BARK[2], (bx, by - 4), (bx + dx * k, by + 1), 3)
+    fork_y = by - 30 * k
+    limbs = [(-30, -52), (-12, -66), (10, -64), (30, -50)]
+    for i, (dx, dy) in enumerate(limbs):
+        side = -1 if dx < 0 else 1
+        _strand(surf, [(bx + side * 5 * k, by, 12 * k), (bx + side * 4 * k, fork_y, 9 * k),
+                       (bx + dx * 0.5 * k, by + dy * 0.75 * k, 6 * k),
+                       (bx + dx * k, by + dy * k, 3 * k)], PLANE_BARK)
+    _strand(surf, [(bx, by, 18 * k), (bx - 1, by - 14 * k, 14 * k), (bx, fork_y + 2, 11 * k)],
+            PLANE_BARK)
+    # Plane bark sheds in pale and olive patches: a camouflage mosaic
+    mask = pygame.mask.from_surface(surf)
+    for _ in range(int(260 * k * k)):
+        x = round(bx + rng.uniform(-22, 22) * k)
+        y = rng.randrange(int(by - 60 * k), ph)
+        if not mask.get_at((x, y)) or surf.get_at((x, y))[:3] == PLANE_BARK[3][:3]:
+            continue
+        color = rng.choice(PLANE_PATCHES)
+        for _ in range(rng.randint(3, 7)):   # an irregular blotch of a few pixels
+            px, py = x + rng.randint(-2, 2), y + rng.randint(-1, 1)
+            if 0 <= px < pw and 0 <= py < ph and mask.get_at((px, py)):
+                surf.set_at((px, py), color)
 
-    # Plane bark peels in pale cream and olive patches
-    for _ in range(trunk_h * 2):
-        x = base[0] + rng.randint(-w - 1, w)
-        y = base[1] - rng.randint(1, trunk_h - 1)
-        if surf.get_at((x, y))[:3] == PLANE_BARK[:3]:
-            color = rng.choice((PLANE_BARK_PATCH, PLANE_BARK_OLIVE, PLANE_BARK_OLIVE))
-            pygame.draw.rect(surf, color, (x, y, rng.randint(1, 3), rng.randint(1, 2)))
-
-    crown = pygame.Rect(3, 3, pw - 6, int(ph * 0.7))
-    clumps = _limb_clumps(rng, top, crown, w - 1, (16, 22), filler=w * 2)
-    for end, _ in clumps:
-        if end != top:
-            _limb(surf, top, end, 3, PLANE_BARK, PLANE_BARK_DARK)
-    for _, rect in clumps:
-        _clump(surf, rect, _PLANE_TONES)
-    _texture(surf, rng, crown.inflate(4, 4), pw * ph // 5, _PLANE_STROKES)
+    # Broad dome of big leaf clumps
+    anchors = [(-36, -46, 12), (-24, -62, 14), (-4, -72, 15), (16, -66, 14), (34, -50, 12),
+               (-12, -50, 11), (18, -48, 11), (2, -56, 12), (-40, -34, 8), (40, -36, 8)]
+    clumps = []
+    for dx, dy, r in anchors:
+        rx, ry = r * k, r * k * 0.78
+        x = max(rx + 3, min(pw - rx - 3, bx + (dx + rng.uniform(-3, 3)) * k))
+        y = max(ry + 3, by + (dy + rng.uniform(-2, 2)) * k)
+        clumps.append((x, y, rx, ry))
+    for x, y, rx, ry in sorted(clumps, key=lambda c: c[1]):
+        _leafy_clump(surf, rng, (x, y), (rx, ry), PLANE_LEAVES, _PLANE_LEAF)
     return scale(outline(surf, OUTLINE))
 
 
 def plane_tree_footprint(w: int, h: int) -> list[tuple[int, int, int, int]]:
     pw, ph = w * T, h * T
-    return [(pw // 2 - w - 3, ph - 9, w * 2 + 6, 7)]
+    return [(pw // 2 - w * 2 - 2, ph - 10, w * 4 + 4, 8)]
+
+
+# ── Aleppo pine ──────────────────────────────────────────────────────────────
+
+@cached
+def aleppo_pine(w: int = 4, h: int = 5, variant: int = 0) -> pygame.Surface:
+    """Aleppo pine: a leaning reddish trunk carrying flat clouds of needles."""
+    surf = _canvas(w, h)
+    pw, ph = surf.get_size()
+    rng = seeded("pine", w, h, variant)
+    k = pw / (4 * T)                      # designed for a 4×5 tree
+    lean = rng.choice((-1, 1)) * rng.uniform(0.6, 1.0)
+    bx, by = pw / 2 - lean * 8 * k, ph - 3
+
+    bend = rng.uniform(-4, 4)
+    trunk = [(bx, by, 6 * k), (bx + (lean * 3 + bend) * k, by - 20 * k, 5 * k),
+             (bx + lean * 12 * k, by - 42 * k, 4 * k), (bx + lean * 16 * k, by - 60 * k, 2)]
+    _strand(surf, trunk, PINE_BARK)
+    for _ in range(int(24 * k)):   # flaky, plated bark
+        i = rng.randrange(len(trunk) - 1)
+        (x0, y0, _), (x1, y1, _) = trunk[i], trunk[i + 1]
+        t = rng.random()
+        x = x0 + (x1 - x0) * t + rng.uniform(-1.5, 1.5)
+        surf.set_at((round(x), round(y0 + (y1 - y0) * t)), PINE_BARK[2])
+
+    def trunk_at(y: float) -> tuple[float, float]:
+        for (x0, y0, _), (x1, y1, _) in zip(trunk, trunk[1:]):
+            if y1 <= y <= y0:
+                return x0 + (x1 - x0) * (y0 - y) / (y0 - y1), y
+        return trunk[-1][0], trunk[-1][1]
+
+    # An open, irregular crown of needle clouds on upward-angled branches
+    top_x = bx + lean * 16 * k
+    anchors = [(0, -64, 10), (-14, -56, 9), (13, -54, 9), (-22, -44, 8), (20, -42, 8),
+               (-6, -48, 8), (6, -40, 7), (-12, -34, 6)]
+    clouds = []
+    for dx, dy, r in anchors:
+        rx, ry = r * k, r * k * 0.7
+        x = max(rx + 3, min(pw - rx - 3, top_x + (dx + rng.uniform(-2, 2)) * k))
+        y = max(ry + 3, by + (dy + rng.uniform(-2, 2)) * k)
+        clouds.append((x, y, rx, ry))
+    for x, y, _, _ in clouds:
+        root = trunk_at(min(by - 8 * k, y + 10 * k))
+        pygame.draw.line(surf, PINE_BARK[2], root, (x, y + 2), 2)
+        pygame.draw.line(surf, PINE_BARK[1], (root[0], root[1] - 1), (x, y + 1), 1)
+    for x, y, rx, ry in sorted(clouds, key=lambda c: c[1]):
+        _leafy_clump(surf, rng, (x, y), (rx, ry), PINE_NEEDLES)
+    return scale(outline(surf, OUTLINE))
+
+
+def aleppo_pine_footprint(w: int, h: int) -> list[tuple[int, int, int, int]]:
+    pw, ph = w * T, h * T
+    k = pw / (4 * T)
+    return [(round(pw / 2 - 5 * k), ph - 7, round(10 * k), 5)]
+
+
+def pine_shadow(w: int, h: int, variant: int = 0) -> list[tuple[str, tuple[int, int, int, int]]]:
+    """Open crown: a lighter, irregular pair of shadow blobs."""
+    pw, ph = w * T, h * T
+    return [("ellipse", (pw // 2 - pw // 3, ph - 8, pw // 2, 7)),
+            ("ellipse", (pw // 2, ph - 10, pw // 3, 6))]
 
 
 # ── Fig tree ─────────────────────────────────────────────────────────────────

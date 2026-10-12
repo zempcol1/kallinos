@@ -72,6 +72,7 @@ class Combat(State):
     MESSAGE_MS = 1200
     POPUP_MS = 900
     SPARK_MS = 260
+    MUSIC_STOP_MS = 300
     HP_DRAIN_PER_MS = 0.02          # displayed HP catches up at this rate
     HP_LAG_DELAY_MS = 300           # the pale "damage" trail waits before shrinking
 
@@ -104,6 +105,7 @@ class Combat(State):
         self._trail_hp: dict[str, float] = {}
         self._hit_at: dict[str, float] = {}
         self._popups: list[list] = []   # [text, color, (x, y), born]
+        self._sounds: list[tuple[float, str]] = []
         self._sparks: list[list] = []   # [(x, y), born]
 
     def enter(self, params: dict | None = None) -> None:
@@ -131,6 +133,9 @@ class Combat(State):
         self._hit_at = {"player": -1e9, "enemy": -1e9}
         self._popups = []
         self._sparks = []
+        self._sounds: list[tuple[float, str]] = []    # (when, name) to play later
+        self.game.audio.play_music("battle")
+        self.game.audio.play("swoosh")
 
     # ── Input & actions ──────────────────────────────────────────────────────
 
@@ -142,8 +147,10 @@ class Combat(State):
             if self._phase == self.PHASE_PLAYER_CHOOSE:
                 if event.key in (pygame.K_UP, pygame.K_w):
                     self._selected = (self._selected - 1) % len(self.ACTIONS)
+                    self.game.audio.play("menu_move")
                 elif event.key in (pygame.K_DOWN, pygame.K_s):
                     self._selected = (self._selected + 1) % len(self.ACTIONS)
+                    self.game.audio.play("menu_move")
                 elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_e):
                     self._execute_action()
 
@@ -185,6 +192,7 @@ class Combat(State):
         elif action == "Flee":
             if not self._can_flee:
                 self._set_message("Your legs won't move!")
+                self.game.audio.play("deny")
                 return
             # Non-tutorial flee: 50% chance
             if random.random() < 0.5:
@@ -202,6 +210,7 @@ class Combat(State):
         self._player.hp += heal
         self._set_message(f"You use the {used['name']}. +{heal} HP")
         self._popup(f"+{heal}", self.HEAL_COLOR, "player")
+        self.game.audio.play("heal")
         self._phase = self.PHASE_PLAYER_ACT
         self._hint = None
 
@@ -235,6 +244,9 @@ class Combat(State):
         # The number and spark appear when the lunge connects
         born = self._time + self.LUNGE_MS / 2
         self._hit_at[target] = born
+        if attacker == "enemy":
+            self.game.audio.play("croak")
+        self._sounds.append((born, "hit" if target == "enemy" else "hurt"))
         self._popup(f"-{damage}", s.COLOR_WHITE, target, born)
         self._sparks.append([self._body_center(target), born])
 
@@ -269,6 +281,9 @@ class Combat(State):
         if self._phase == self.PHASE_INTRO and self._time >= self.INTRO_MS:
             self._phase = self.PHASE_PLAYER_CHOOSE
         self._update_hp_bars(dt)
+        for when, name in [snd for snd in self._sounds if snd[0] <= self._time]:
+            self.game.audio.play(name)
+        self._sounds = [snd for snd in self._sounds if snd[0] > self._time]
         self._popups = [p for p in self._popups if self._time - p[3] < self.POPUP_MS]
         self._sparks = [sp for sp in self._sparks if self._time - sp[1] < self.SPARK_MS]
         if self._message_timer > 0:
@@ -300,6 +315,8 @@ class Combat(State):
             self._phase = self.PHASE_VICTORY
             self._attacker = None
             self._anim_timer = 0.0
+            self.game.audio.stop_music(self.MUSIC_STOP_MS)
+            self.game.audio.play("victory")
             self._set_message(
                 f"The {self._enemy.name} croaks weakly and hops away! +{self._victory_xp} XP"
             )
@@ -308,6 +325,8 @@ class Combat(State):
         if self._player.hp <= 0:
             self._phase = self.PHASE_DEFEAT
             self._set_message("You collapse... everything goes dark.")
+            self.game.audio.stop_music(self.MUSIC_STOP_MS)
+            self.game.audio.play("defeat")
             return
 
         if self._phase == self.PHASE_PLAYER_ACT:
@@ -415,7 +434,7 @@ class Combat(State):
                 inner = (x + math.cos(a) * reach * 0.4, y + math.sin(a) * reach * 0.4)
                 outer = (x + math.cos(a) * reach, y + math.sin(a) * reach)
                 pygame.draw.line(surface, color, inner, outer, 4 if i % 2 else 2)
-        number_font = font(40)
+        number_font = font(48)
         for text, color, (x, y), born in self._popups:
             t = (self._time - born) / self.POPUP_MS
             if t < 0:
@@ -502,7 +521,7 @@ class Combat(State):
         persistent = self._phase in (self.PHASE_VICTORY, self.PHASE_DEFEAT)
         if not self._message or (self._message_timer <= 0 and not persistent):
             return
-        text_font = font(28)
+        text_font = font(24)
         text = text_font.render(self._message, True, s.COLOR_WHITE)
         box = text.get_rect(center=(s.SCREEN_WIDTH // 2, s.SCREEN_HEIGHT - 150)).inflate(40, 24)
         box.right = min(box.right, self.MENU_PANEL.left - 10) if self._phase in (

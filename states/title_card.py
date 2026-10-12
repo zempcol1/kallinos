@@ -39,6 +39,8 @@ class TitleCard(State):
         self._timer = 0.0
 
     def enter(self, params: dict | None = None) -> None:
+        self.game.audio.stop_music()
+        self.game.audio.play("chime")
         self._params = params or {}
         self._timer = 0.0
 

@@ -34,6 +34,7 @@ class NPC(Character):
         look = Look(
             tunic=tuple(data["color"]),
             hair=tuple(data.get("hair", (70, 48, 30))),
+            skin=tuple(data.get("skin", (226, 186, 146))),
             trim=tuple(data["trim"]) if "trim" in data else None,
             hair_style=data.get("hair_style", "short"),
             bearded=data.get("bearded", False),

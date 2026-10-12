@@ -12,6 +12,7 @@ import math
 import pygame
 
 import settings as s
+from systems.sprites.nature import olive_tree_logical
 from systems.sprites.pixel_art import cached, lerp, outline, scale, seeded, shade
 
 # Logical canvas: the screen at the world's pixel size, rounded up
@@ -43,9 +44,10 @@ ROOF_SHADE = (110, 56, 68)
 FRIEZE = (76, 70, 122)
 CELLA = (54, 30, 52)
 GOLD = (236, 190, 96)
-LEAF_DARK = (26, 26, 38)
-LEAF = (40, 40, 52)
 LEAF_RIM = (196, 132, 78)
+SILHOUETTE_DARK = (20, 16, 30)
+SILHOUETTE_LIGHT = (74, 58, 78)
+OLIVE_BASE = (40, 150)            # where the title olive's trunk meets the rock
 CLOUD = (120, 62, 108)
 CLOUD_LIT = (238, 146, 108)
 CLOUD_GLOW = (252, 190, 130)
@@ -124,7 +126,8 @@ def islands() -> pygame.Surface:
 
 @cached
 def sea() -> pygame.Surface:
-    """Static sea: dithered bands darkening toward the viewer, a glow under the sun."""
+    """The sea with the sun's path baked in: still dashes that widen and fade
+    toward the viewer (the menu only lets a few of them sparkle, slowly)."""
     surf = pygame.Surface((WIDTH, HEIGHT - HORIZON))
     _dithered_bands(surf, SEA_BANDS, 0, HEIGHT - HORIZON)
     for y in range(0, 14):
@@ -132,7 +135,32 @@ def sea() -> pygame.Surface:
         for x in range(SUN[0] - half, SUN[0] + half):
             if (x + y) % 2 == 0 or y < 3:
                 surf.set_at((x, y), lerp(surf.get_at((x, y)), SKY_BANDS[-2], 0.5))
+    rng = seeded("sun_path")
+    height = HEIGHT - HORIZON
+    for y in range(1, height, 2):
+        depth = y / height
+        half = SUN_RADIUS * (0.7 + depth * 1.6)
+        color = lerp(GLINT, SEA_BANDS[3], depth * 0.9)
+        for _ in range(2):
+            x = SUN[0] + rng.uniform(-half, half) * (0.5 + 0.5 * rng.random())
+            w = rng.randint(1, 4)
+            pygame.draw.line(surf, SUN_CORE if depth < 0.1 else color,
+                             (round(x - w / 2), y), (round(x + w / 2), y))
     return surf
+
+
+@cached
+def sparkles() -> list[tuple[int, int, int, float]]:
+    """(x, y, width, phase) of the few spots on the sun path that slowly glint."""
+    rng = seeded("sparkles")
+    height = HEIGHT - HORIZON
+    spots = []
+    for _ in range(7):
+        y = rng.randrange(2, height // 2)
+        half = SUN_RADIUS * (0.7 + y / height * 1.6)
+        spots.append((round(SUN[0] + rng.uniform(-half, half) * 0.7), HORIZON + y,
+                      rng.randint(2, 4), rng.random() * math.tau))
+    return spots
 
 
 def _temple(surf: pygame.Surface, x: int, base: int, width: int = 48) -> None:
@@ -225,51 +253,28 @@ def foreground() -> pygame.Surface:
             h = rng.randint(2, 5)
             pygame.draw.line(surf, ROCK_DARK, (x + dx, top), (x + dx + 1, top - h))
 
-    # Thick, twisting trunk that splits into three limbs
-    base_x, base_y, fork_y = 36, 150, 108
-    for y in range(fork_y, base_y + 1):
-        t = (base_y - y) / (base_y - fork_y)
-        cx = base_x + math.sin(t * 3.0) * 4 + t * 7
-        w = 13 - t * 6 + (3 if t < 0.12 else 0)
-        pygame.draw.line(surf, ROCK_DARK, (round(cx - w / 2), y), (round(cx + w / 2), y))
-        surf.set_at((round(cx + w / 2), y), ROCK_LIT)
-        if int(y * 0.7) % 4 == 0:
-            surf.set_at((round(cx), y), ROCK)
-    fork = (44, fork_y)
-    ends = [(12, 90), (40, 78), (66, 84), (88, 98)]
-    for end in ends:
-        mid = ((fork[0] + end[0]) // 2 + 2, (fork[1] + end[1]) // 2 + 3)
-        pygame.draw.lines(surf, ROCK_DARK, False, [fork, mid, end], 4)
-        pygame.draw.lines(surf, ROCK_LIT, False, [(fork[0] + 2, fork[1]), (mid[0] + 2, mid[1]),
-                                                  (end[0] + 1, end[1])], 1)
-
-    # Crown: overlapping oval clumps hung on the limb ends, with sky showing through
-    clumps = []
-    for ex, ey in ends:
-        for _ in range(4):
-            w, h = rng.randint(16, 26), rng.randint(8, 12)
-            clumps.append((ex + rng.randint(-10, 10) - w // 2, ey + rng.randint(-6, 4) - h // 2,
-                           w, h))
-    clumps.sort(key=lambda c: c[1])
-    for x, y, w, h in clumps:
-        pygame.draw.ellipse(surf, LEAF_DARK, (x, y + 1, w, h))
-        pygame.draw.ellipse(surf, LEAF, (x + 1, y, w - 4, h - 3))
-    crown = pygame.Rect(0, 60, 104, 50)
-    for _ in range(260):   # silvery leaf specks
-        px, py = rng.randrange(crown.left, crown.right), rng.randrange(crown.top, crown.bottom)
-        if surf.get_at((px, py))[:3] == LEAF[:3]:
-            surf.set_at((px, py), (62, 58, 76))
-    # Warm rim where the crown faces the sun (up and right)
-    mask = pygame.mask.from_surface(surf)
-    for py in range(crown.top, crown.bottom):
-        for px in range(crown.left, crown.right):
-            if not mask.get_at((px, py)):
+    # The olive: the map's olive drawn large, turned into a dusk silhouette
+    # with a warm rim where it faces the sun
+    olive = olive_tree_logical(6, 6, 2)
+    tree = pygame.Surface(olive.get_size(), pygame.SRCALPHA)
+    w, h = olive.get_size()
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = olive.get_at((x, y))
+            if a:
+                lum = (0.3 * r + 0.59 * g + 0.11 * b) / 255
+                tree.set_at((x, y), lerp(SILHOUETTE_DARK, SILHOUETTE_LIGHT, lum ** 1.4))
+    mask = pygame.mask.from_surface(tree)
+    for y in range(h):
+        for x in range(w):
+            if not mask.get_at((x, y)):
                 continue
-            open_up = py > 0 and not mask.get_at((px, py - 1))
-            open_right = px + 1 < WIDTH and not mask.get_at((px + 1, py))
-            if open_up or (open_right and py < crown.centery):
-                warmth = min(1.0, px / 90)
-                surf.set_at((px, py), lerp(LEAF, LEAF_RIM, 0.35 + 0.65 * warmth))
+            open_up = y == 0 or not mask.get_at((x, y - 1))
+            open_right = x + 1 >= w or not mask.get_at((x + 1, y))
+            if open_up or open_right:
+                warmth = 0.45 + 0.55 * x / w
+                tree.set_at((x, y), lerp(tree.get_at((x, y)), LEAF_RIM, warmth))
+    surf.blit(tree, (OLIVE_BASE[0] - w // 2, OLIVE_BASE[1] - h + 3))
     return surf
 
 

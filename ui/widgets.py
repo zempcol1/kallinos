@@ -7,16 +7,23 @@ import functools
 import pygame
 
 import settings as s
+from ui.pixel_font import PixelFont
 
 PANEL_INSET = 5   # ornate panels: inner hairline distance from the border
 PANEL_STUD = 6    # ornate panels: corner stud size
 ORNAMENT_DIAMOND = 6
 
 
+# Nominal font size → pixel scale of the pixel font (≤ 26 → 2×, ≤ 40 → 3×, ...)
+FONT_SCALES = ((26, 2), (40, 3), (56, 4))
+FONT_MAX_SCALE = 5
+
+
 @functools.cache
-def font(size: int) -> pygame.font.Font:
-    """Shared default font at a given size (created once)."""
-    return pygame.font.Font(None, size)
+def font(size: int) -> PixelFont:
+    """The game's pixel font for a nominal size, shared (created once per size)."""
+    scale = next((sc for limit, sc in FONT_SCALES if size <= limit), FONT_MAX_SCALE)
+    return PixelFont(scale)
 
 
 def draw_panel(surface: pygame.Surface, rect: pygame.Rect,
@@ -66,10 +73,11 @@ def draw_fade_strip(surface: pygame.Surface, rect: pygame.Rect, alpha: int = 150
     surface.blit(_fade_strip(rect.w, rect.h, alpha, fade_down), rect)
 
 
-def draw_shadowed_text(surface: pygame.Surface, text: str, text_font: pygame.font.Font,
+def draw_shadowed_text(surface: pygame.Surface, text: str, text_font: PixelFont,
                        pos: tuple[int, int], color: tuple = s.COLOR_WHITE) -> pygame.Rect:
-    """Text with a 2px drop shadow; returns the text rect."""
-    surface.blit(text_font.render(text, True, s.COLOR_BLACK), (pos[0] + 2, pos[1] + 2))
+    """Text with a drop shadow one font pixel down-right; returns the text rect."""
+    offset = text_font.scale
+    surface.blit(text_font.render(text, True, s.COLOR_BLACK), (pos[0] + offset, pos[1] + offset))
     return surface.blit(text_font.render(text, True, color), pos)
 
 
@@ -86,7 +94,7 @@ def draw_ornament_rules(surface: pygame.Surface, around: pygame.Rect, length: in
         pygame.draw.polygon(surface, color, [(x, y - r), (x + r, y), (x, y + r), (x - r, y)])
 
 
-def draw_text_box(surface: pygame.Surface, text: str, text_font: pygame.font.Font,
+def draw_text_box(surface: pygame.Surface, text: str, text_font: PixelFont,
                   center: tuple[int, int], fill: tuple = (0, 0, 0, 180),
                   color: tuple = s.COLOR_WHITE, padding: tuple[int, int] = (20, 10)) -> None:
     """A single line of text on a tight translucent background (toasts, messages)."""
@@ -96,7 +104,7 @@ def draw_text_box(surface: pygame.Surface, text: str, text_font: pygame.font.Fon
     surface.blit(text_surf, text_rect)
 
 
-def wrap_text(text: str, text_font: pygame.font.Font, max_width: int) -> list[str]:
+def wrap_text(text: str, text_font: PixelFont, max_width: int) -> list[str]:
     """Greedy word wrap into lines that fit ``max_width`` pixels."""
     lines: list[str] = []
     current = ""

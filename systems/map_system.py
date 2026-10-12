@@ -38,6 +38,8 @@ class TileMap:
         self.display_name: str = data.get("display_name", self.name)
         self.script: str | None = data.get("script")
         self.intro_toast: str | None = data.get("intro_toast")
+        self.music: str | None = data.get("music")
+        self.ambience: dict = data.get("ambience", {})
         self.width: int = data["width"]
         self.height: int = data["height"]
         self.player_start: tuple[int, int] = tuple(data["player_start"])
@@ -77,6 +79,10 @@ class TileMap:
             if t["id"] == trigger_id:
                 return self._tile_rect(t)
         return None
+
+    def tile_at(self, x: float, y: float) -> int | None:
+        """Ground tile id under a world position (None outside the map)."""
+        return self._tile_id(int(x // s.SCALED_TILE), int(y // s.SCALED_TILE))
 
     def get_prop(self, prop_id: str) -> Prop | None:
         """The sorted object with this ``"id"`` in the map JSON, if any."""

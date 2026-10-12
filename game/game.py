@@ -13,6 +13,7 @@ from states.dialogue import Dialogue
 from states.combat import Combat
 from states.game_over import GameOver
 from states.title_card import TitleCard
+from systems.audio import Audio
 from systems.sprites import app_icon
 
 
@@ -20,6 +21,7 @@ class Game:
     """Top-level object that initializes Pygame and drives the game loop."""
 
     def __init__(self) -> None:
+        pygame.mixer.pre_init(s.AUDIO_RATE, -16, 1, s.AUDIO_BUFFER)
         pygame.init()
         pygame.display.set_icon(app_icon(s.ICON_SIZE))
         self.screen = pygame.display.set_mode((s.SCREEN_WIDTH, s.SCREEN_HEIGHT))
@@ -27,6 +29,7 @@ class Game:
         self.clock = pygame.time.Clock()
         self.running = True
         self.session = GameSession(s.START_MAP)
+        self.audio = Audio()
 
         # State machine setup
         self.state_machine = StateMachine()
@@ -46,11 +49,13 @@ class Game:
             dt = self.clock.tick(s.FPS)
             events = pygame.event.get()
 
-            # Global quit check
+            # Global keys: quit, mute
             for event in events:
                 if event.type == pygame.QUIT:
                     self.quit()
                     return
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_m:
+                    self.audio.toggle_mute()
 
             state = self.state_machine.current
             if state is None:
@@ -59,6 +64,7 @@ class Game:
 
             state.handle_events(events)
             state.update(dt)
+            self.audio.update()
 
             # Render the full stack so overlay states (dialogue) draw
             # on top of the state below them.

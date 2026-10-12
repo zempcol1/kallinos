@@ -29,10 +29,11 @@ Rebuild after changing the game.
 
 | Key           | Action                       |
 |---------------|------------------------------|
-| WASD / Arrows | Move, navigate menus         |
+| WASD / Arrows | Move (also diagonally), navigate menus |
 | E / Enter     | Interact, advance dialogue   |
 | Enter / Space | Confirm                      |
 | ESC           | Back to main menu            |
+| M             | Sound on / off               |
 
 ## What's playable
 

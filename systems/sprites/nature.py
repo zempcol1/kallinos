@@ -256,7 +256,13 @@ def _leafy_clump(surf: pygame.Surface, rng: random.Random, center: tuple[float, 
 
 @cached
 def olive_tree(w: int = 3, h: int = 3, variant: int = 0) -> pygame.Surface:
-    """Old olive: a braided, hollow trunk under a silvery crown of leaf sprays."""
+    """Old olive: a braided, hollow trunk under a silvery crown of leaf clumps."""
+    return scale(olive_tree_logical(w, h, variant))
+
+
+@cached
+def olive_tree_logical(w: int = 3, h: int = 3, variant: int = 0) -> pygame.Surface:
+    """The olive at logical size, outlined (the title screen reuses it)."""
     surf = _canvas(w, h)
     pw, ph = surf.get_size()
     rng = seeded("olive", w, h, variant)
@@ -325,7 +331,7 @@ def olive_tree(w: int = 3, h: int = 3, variant: int = 0) -> pygame.Surface:
             x = round(cx + rng.uniform(-rx, rx) * 0.6)
             y = round(cy + ry * rng.uniform(0.3, 0.7))
             surf.set_at((x, y), OLIVE_FRUIT if rng.random() < 0.7 else OLIVE_FRUIT_GREEN)
-    return scale(outline(surf, OUTLINE))
+    return outline(surf, OUTLINE)
 
 
 def olive_tree_footprint(w: int, h: int) -> list[tuple[int, int, int, int]]:

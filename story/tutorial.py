@@ -11,7 +11,6 @@ import pygame
 
 import settings as s
 from story.map_script import MapScript
-from systems.sprites import silhouette
 
 if TYPE_CHECKING:
     from entities.npc import NPC
@@ -35,6 +34,7 @@ class TutorialScript(MapScript):
     GRAVITY = 0.004                       # px per ms², for the fall
     MOTES = 14                            # golden motes rising from the shimmering tree
     MOTE_RISE_MS = 1600
+    MOTE_START = 0.55                     # motes rise from this height of the tree sprite
 
     def __init__(self, scene: Exploration) -> None:
         super().__init__(scene)
@@ -62,9 +62,13 @@ class TutorialScript(MapScript):
             self._check_trigger()
         elif self._phase == "npc_drops":
             self._update_npc_drop(dt)
-        elif self._phase == "shimmer" and self._timer > self._data["shimmer_ms"]:
-            self._phase = "done"
-            self.scene.fade_out(self._show_title_card)
+        elif self._phase == "shimmer":
+            prop = self.scene.tile_map.get_prop(self._data["shimmer_object"])
+            if prop:
+                prop.glow = abs(math.sin(self._timer / 300.0))
+            if self._timer > self._data["shimmer_ms"]:
+                self._phase = "done"
+                self.scene.fade_out(self._show_title_card)
 
     def _update_npc_leaving(self) -> None:
         """Niko walks behind the boulder, then fades away: *croak*."""
@@ -80,12 +84,14 @@ class TutorialScript(MapScript):
             npc.alpha = 255
         self._phase = "explore"
         self.scene.show_toast(self._data["intro_toast"])
+        self.scene.game.audio.play("croak")
 
     def _update_npc_drop(self, dt: float) -> None:
         npc = self._missing_npc()
         self._fall_speed += self.GRAVITY * dt
         npc.lift = max(0.0, npc.lift - self._fall_speed * dt)
         if npc.lift <= 0:
+            self.scene.game.audio.play("thud")
             npc.face_towards(self.scene.player.x, self.scene.player.y)
             self._phase = "victory"
             self.scene.push_dialogue(_lines(self._data["victory"]), on_complete="victory_done")
@@ -124,6 +130,7 @@ class TutorialScript(MapScript):
         elif event_id == "victory_done":
             self._phase = "shimmer"
             self._timer = 0.0
+            self.scene.game.audio.play("chime")
 
     def on_combat_victory(self) -> None:
         npc = self._missing_npc()
@@ -153,18 +160,15 @@ class TutorialScript(MapScript):
         prop = self.scene.tile_map.get_prop(self._data["shimmer_object"])
         if prop is None:
             return
-        # Athena's olive pulses gold (foreshadowing) while motes drift up from it
+        # Athena's olive pulses gold (its prop draws the glow, see ``update``);
+        # motes drift up out of its crown
         rect = prop.rect.move(-cam_x, -cam_y)
-        glow = silhouette(prop.sprite, s.COLOR_TITLE_GOLD)
-        glow.set_alpha(int(abs(math.sin(self._timer / 300.0)) * 160))
-        surface.blit(glow, rect)
-
         mote = pygame.Surface((s.SCALE, s.SCALE))
         for i in range(self.MOTES):
             t = (self._timer / self.MOTE_RISE_MS + i / self.MOTES) % 1.0
             x = rect.left + rect.w * ((i * 0.618) % 1.0)
             x += math.sin(t * math.tau + i) * s.SCALE * 2
-            y = rect.bottom - s.SCALED_TILE - t * rect.h
+            y = rect.top + rect.h * self.MOTE_START - t * rect.h * self.MOTE_START
             mote.fill(s.COLOR_TITLE_GOLD if i % 3 else s.COLOR_WHITE)
             mote.set_alpha(int(math.sin(t * math.pi) * 255))
             surface.blit(mote, (round(x / s.SCALE) * s.SCALE, round(y / s.SCALE) * s.SCALE))

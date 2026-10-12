@@ -5,7 +5,7 @@ from __future__ import annotations
 import pygame
 
 import settings as s
-from systems.sprites import ObjectType
+from systems.sprites import ObjectType, silhouette
 
 
 class Prop:
@@ -18,6 +18,7 @@ class Prop:
     """
 
     SEE_THROUGH_ALPHA = 140
+    GLOW_ALPHA = 160              # strongest golden glow (scripts set ``glow`` 0–1)
     REACH = (int(s.SCALED_TILE * 1.4), s.SCALED_TILE)   # interaction margin (x, y)
 
     def __init__(self, data: dict, kind: ObjectType, rect: pygame.Rect,
@@ -31,6 +32,8 @@ class Prop:
         self.harvest_text: str | None = data.get("harvest_text")
         self.harvested = False
         self.faded = False
+        self.glow = 0.0
+        self.glow_color: tuple = s.COLOR_TITLE_GOLD
 
         self._kind = kind
         self._args = (links,) if kind.tiled else (data["w"], data["h"])
@@ -72,4 +75,11 @@ class Prop:
                 self._faded_sprite = sprite.copy()
                 self._faded_sprite.set_alpha(self.SEE_THROUGH_ALPHA)
             sprite = self._faded_sprite
-        surface.blit(sprite, (self.rect.x - cam_x, self.rect.y - cam_y))
+        pos = (self.rect.x - cam_x, self.rect.y - cam_y)
+        surface.blit(sprite, pos)
+        if self.glow > 0:
+            # Drawn with the prop, so characters in front of it stay in front
+            light = silhouette(self._sprite, self.glow_color)
+            alpha = self.GLOW_ALPHA * self.glow
+            light.set_alpha(int(alpha * (self.SEE_THROUGH_ALPHA / 255 if self.faded else 1)))
+            surface.blit(light, pos)

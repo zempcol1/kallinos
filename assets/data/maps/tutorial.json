@@ -2,6 +2,18 @@
   "name": "tutorial",
   "display_name": "Village of Kyrillos — Garden",
   "script": "tutorial",
+  "music": "garden",
+  "ambience": {
+    "tint": [
+      255,
+      232,
+      198
+    ],
+    "glow": true,
+    "vignette": true,
+    "leaves": true,
+    "butterflies": 3
+  },
   "width": 23,
   "height": 17,
   "player_start": [
@@ -74,6 +86,11 @@
         38,
         32
       ],
+      "skin": [
+        222,
+        186,
+        150
+      ],
       "hair_style": "short",
       "face": "worried",
       "dialogue_idle": [
@@ -95,6 +112,11 @@
         140,
         68,
         32
+      ],
+      "skin": [
+        236,
+        194,
+        160
       ],
       "hair_style": "curly",
       "trim": [

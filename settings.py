@@ -19,6 +19,12 @@ PLAYER_SPEED = 120      # Pixels per second (at scale)
 WALK_FRAME_MS = 150     # Walk-cycle frame duration (design.md)
 TEXT_SPEED_CPS = 45     # Dialogue typewriter speed, characters per second
 COMBAT_SCALE = 6        # Sprite scale in the combat view (2× exploration)
+
+# ── Audio (synthesized in code, see systems/audio.py) ────────────────────────
+AUDIO_RATE = 22050      # Hz, mono 16-bit
+AUDIO_BUFFER = 512
+MUSIC_VOLUME = 0.5
+SFX_VOLUME = 0.8
 ICON_SIZE = 64          # Window icon size in pixels
 
 # ── Paths ────────────────────────────────────────────────────────────────────

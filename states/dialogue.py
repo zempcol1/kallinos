@@ -33,13 +33,15 @@ class Dialogue(State):
     BOX_HEIGHT = 144
     MARGIN = 16
     PORTRAIT_FRAME = 104
-    LINE_HEIGHT = 30
     MAX_LINES = 3
     MOUTH_MS = 110          # talking mouth flap while text types
     BLINK_EVERY_MS = 3200
     BLINK_MS = 140
     ARROW_BOB_MS = 250
     NARRATION_COLOR = s.COLOR_SAND
+    BLIP_EVERY = 3          # letters per text blip
+    VOICES = ("blip", "blip_low", "blip_high")
+    ADVANCE_VOLUME = 0.6
     PORTRAIT_BG = (44, 36, 54)
 
     def __init__(self, game: Game) -> None:
@@ -80,11 +82,18 @@ class Dialogue(State):
             if self._typing:
                 self._shown = len(self._text)
                 continue
+            self.game.audio.play("menu_move", self.ADVANCE_VOLUME)
             self._index += 1
             self._shown = 0.0
             if self._index >= len(self._lines):
                 self._finish()
                 return
+
+    def _voice(self) -> str:
+        speaker = self._lines[self._index][0]
+        if not speaker:
+            return "blip_soft"
+        return self.VOICES[sum(map(ord, speaker)) % len(self.VOICES)]
 
     def _finish(self) -> None:
         """Pop this state and optionally signal an event."""
@@ -99,7 +108,13 @@ class Dialogue(State):
     def update(self, dt: float) -> None:
         self._timer += dt
         if self._lines and self._index < len(self._lines) and self._typing:
+            before = int(self._shown)
             self._shown = min(len(self._text), self._shown + dt * s.TEXT_SPEED_CPS / 1000)
+            after = int(self._shown)
+            # A blip every few letters, pitched per speaker
+            if after // self.BLIP_EVERY > before // self.BLIP_EVERY and \
+                    self._text[after - 1:after].isalnum():
+                self.game.audio.play(self._voice())
 
     # ── Rendering ────────────────────────────────────────────────────────────
 
@@ -122,15 +137,15 @@ class Dialogue(State):
         text_font = font(30)
         color = s.COLOR_WHITE if speaker else self.NARRATION_COLOR
         remaining = int(self._shown)
-        y = box.y + 28
+        y = box.y + 26
         for line in wrap_text(text, text_font, box.right - 24 - text_x)[:self.MAX_LINES]:
-            visible = line[:remaining]
+            visible = line[:max(0, remaining)]
             remaining -= len(line) + 1   # +1 for the space the wrap swallowed
             if visible:
                 shadow = text_font.render(visible, True, s.COLOR_BLACK)
-                surface.blit(shadow, (text_x + 2, y + 2))
+                surface.blit(shadow, (text_x + text_font.scale, y + text_font.scale))
                 surface.blit(text_font.render(visible, True, color), (text_x, y))
-            y += self.LINE_HEIGHT
+            y += text_font.get_linesize()
 
         if not self._typing:
             arrow = continue_arrow()

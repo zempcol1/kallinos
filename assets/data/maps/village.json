@@ -2,6 +2,17 @@
   "name": "village",
   "display_name": "Village of Kyrillos",
   "intro_toast": "The next morning...",
+  "music": "village",
+  "ambience": {
+    "tint": [
+      246,
+      246,
+      252
+    ],
+    "vignette": true,
+    "leaves": true,
+    "butterflies": 2
+  },
   "width": 32,
   "height": 24,
   "player_start": [
@@ -84,6 +95,11 @@
         38,
         32
       ],
+      "skin": [
+        222,
+        186,
+        150
+      ],
       "hair_style": "short",
       "face": "worried",
       "dialogue_idle": [
@@ -104,6 +120,11 @@
         140,
         68,
         32
+      ],
+      "skin": [
+        236,
+        194,
+        160
       ],
       "hair_style": "curly",
       "trim": [
@@ -130,6 +151,11 @@
         214,
         210,
         200
+      ],
+      "skin": [
+        198,
+        152,
+        112
       ],
       "hair_style": "elder",
       "bearded": true,

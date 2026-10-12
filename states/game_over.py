@@ -26,6 +26,7 @@ class GameOver(State):
         self._timer = 0.0
 
     def enter(self, params: dict | None = None) -> None:
+        self.game.audio.stop_music()
         self._selected = 0
         self._timer = 0.0
 

@@ -17,9 +17,10 @@ from entities.player import Player
 from entities.prop import Prop
 from game.state_machine import State
 from story import MAP_SCRIPTS, MapScript
+from systems.ambience import Ambience
 from systems.camera import Camera
 from systems.inventory_system import load_item_db
-from systems.map_system import TileMap
+from systems.map_system import TILE_EARTH, TILE_PATH, TileMap
 from systems.sprites import Look, interact_bubble
 from ui.widgets import draw_fade_strip, draw_shadowed_text, draw_text_box, font
 
@@ -39,6 +40,8 @@ class Exploration(State):
     PROMPT_BOB_MS = 300   # interaction bubble bob period
     PROMPT_LIFT = s.SCALED_TILE * 5 // 4   # bubble height above a prop's base
     HUD_STRIP = 36        # height of the soft dark bands behind HUD text
+    STEP_FRAMES = (1, 3)  # walk-cycle frames where a foot touches down
+    GRASS_STEP_VOLUME = 0.5
 
     def __init__(self, game: Game) -> None:
         super().__init__(game)
@@ -51,6 +54,8 @@ class Exploration(State):
         self._script: MapScript | None = None
         self._target: ItemPickup | Prop | NPC | None = None   # what E would use now
         self._prompt_timer = 0.0
+        self._ambience: Ambience | None = None
+        self._step_frame = 0
 
         self._toast_text = ""
         self._toast_expires = 0  # pygame ticks; wall-clock so it also expires under overlays
@@ -83,6 +88,9 @@ class Exploration(State):
 
         script_cls = MAP_SCRIPTS.get(self.tile_map.script, MapScript)
         self._script = script_cls(self)
+        self._ambience = Ambience(self.tile_map.ambience, self.tile_map.props, map_name)
+        self.game.audio.play_music(self.tile_map.music)
+        self._step_frame = 0
 
         self._target = None
         self._toast_text = ""
@@ -91,6 +99,10 @@ class Exploration(State):
         self._fading_in = True
         self._fading_out = False
         self._fade_callback = None
+
+    def resume(self) -> None:
+        """Back from an overlay (combat changes the music): the map's track again."""
+        self.game.audio.play_music(self.tile_map.music)
 
     # ── Helpers for map scripts ──────────────────────────────────────────────
 
@@ -179,10 +191,12 @@ class Exploration(State):
             if item_data:
                 target.collected = True
                 self.show_toast(f"Picked up {item_data['name']}")
+                self.game.audio.play("pickup")
         elif isinstance(target, Prop):
             item_data = self._give_item(target.pick())
             if item_data:
                 self.show_toast(target.harvest_text or f"Picked {item_data['name']}")
+                self.game.audio.play("harvest")
         elif isinstance(target, NPC):
             target.face_towards(self.player.x, self.player.y)
             self.push_dialogue([(target.name, line) for line in target.dialogue_idle])
@@ -232,6 +246,9 @@ class Exploration(State):
         for prop in self.tile_map.props:
             prop.update_fade(sprite_rect, feet_y)
         self._camera.follow(self.player.x, self.player.y)
+        self._update_footsteps()
+        view = pygame.Rect(self._camera.x, self._camera.y, s.SCREEN_WIDTH, s.SCREEN_HEIGHT)
+        self._ambience.update(dt, view)
         for pickup in self._pickups:
             pickup.update(dt)
         for npc in self._npcs:
@@ -254,13 +271,15 @@ class Exploration(State):
             entity.render(surface, cam_x, cam_y)
 
         self.tile_map.render_overhead(surface, cam_x, cam_y)
+        self._ambience.render(surface, cam_x, cam_y)
+        self._ambience.render_light(surface)
         self._script.render(surface, cam_x, cam_y)
         if self._target is not None and self.game.state_machine.current is self:
             self._render_prompt(surface, cam_x, cam_y)
         self._render_hud(surface)
 
         if self._toast_text and pygame.time.get_ticks() < self._toast_expires:
-            draw_text_box(surface, self._toast_text, font(26),
+            draw_text_box(surface, self._toast_text, font(30),
                           center=(s.SCREEN_WIDTH // 2, 60), fill=s.COLOR_TOAST_BG)
 
         if self._fade_alpha > 0:
@@ -268,6 +287,19 @@ class Exploration(State):
             fade_surf.fill(s.COLOR_BLACK)
             fade_surf.set_alpha(self._fade_alpha)
             surface.blit(fade_surf, (0, 0))
+
+    def _update_footsteps(self) -> None:
+        """Each time a foot lands, kick up dust on bare ground."""
+        frame = self.player.frame if self.player.moving else 0
+        if frame != self._step_frame and frame in self.STEP_FRAMES:
+            feet = self.player.rect
+            bare = self.tile_map.tile_at(feet.centerx, feet.bottom) in (TILE_PATH, TILE_EARTH)
+            if bare:
+                self._ambience.dust(feet.centerx, feet.bottom - s.SCALE)
+            # Steps sound firmer on bare ground than on grass
+            self.game.audio.play("step" if frame == self.STEP_FRAMES[0] else "step_alt",
+                                 1.0 if bare else self.GRASS_STEP_VOLUME)
+        self._step_frame = frame
 
     def _render_prompt(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
         """A bobbing speech bubble over whatever E would interact with."""
@@ -297,6 +329,6 @@ class Exploration(State):
             return
         draw_fade_strip(surface, pygame.Rect(0, s.SCREEN_HEIGHT - self.HUD_STRIP,
                                              s.SCREEN_WIDTH, self.HUD_STRIP), fade_down=False)
-        hint = "WASD / Arrows  move      E / Enter  interact      Esc  menu"
+        hint = "WASD / Arrows  move     E / Enter  interact     M  sound     Esc  menu"
         draw_shadowed_text(surface, hint, font(22), (14, s.SCREEN_HEIGHT - 22),
                            s.COLOR_TEXT_DIM)

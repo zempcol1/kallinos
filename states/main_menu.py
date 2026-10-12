@@ -52,14 +52,15 @@ class MainMenu(State):
 
     # The scene is mostly still: slow drifts and the occasional visitor.
     # (y, length, speed px/ms, start x) for drifting clouds, logical pixels
-    CLOUDS = [(30, 70, 0.0008, 10), (48, 46, 0.0012, 150), (66, 92, 0.0006, 60),
-              (82, 38, 0.0015, 200), (96, 60, 0.0010, 120)]
-    GULL_EVERY_MS = 40000              # a pair of gulls glides across now and then
+    CLOUDS = [(30, 70, 0.0003, 10), (48, 46, 0.0004, 150), (66, 92, 0.0002, 60),
+              (82, 38, 0.0005, 200), (96, 60, 0.0003, 120)]
+    GULL_EVERY_MS = 60000              # a pair of gulls glides across now and then
     GULL_SPEED = 0.016                 # logical px per ms
     GULL_PAIR = [(0, 46), (14, 41)]    # (x offset, y) of each gull
-    STAR_TWINKLE_MS = 1800
-    MOTES = 6
-    MOTE_RISE_MS = 7000
+    STAR_TWINKLE_MS = 2600
+    MOTES = 3
+    MOTE_RISE_MS = 9000
+    SPARKLE_MS = 2200                  # a glint on the water slowly brightens and dims
 
     def __init__(self, game: Game) -> None:
         super().__init__(game)
@@ -71,6 +72,7 @@ class MainMenu(State):
         self._scaled = pygame.Surface((title.WIDTH * s.SCALE, title.HEIGHT * s.SCALE))
 
     def enter(self, params: dict | None = None) -> None:
+        self.game.audio.play_music("title")
         self._selected = 0
         self._time = 0.0
         self._leaving_at = None
@@ -89,8 +91,10 @@ class MainMenu(State):
                 continue
             if event.key in (pygame.K_UP, pygame.K_w):
                 self._selected = (self._selected - 1) % len(self.MENU_OPTIONS)
+                self.game.audio.play("menu_move")
             elif event.key in (pygame.K_DOWN, pygame.K_s):
                 self._selected = (self._selected + 1) % len(self.MENU_OPTIONS)
+                self.game.audio.play("menu_move")
             elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_e):
                 self._select_option()
 
@@ -98,8 +102,11 @@ class MainMenu(State):
         choice = self.MENU_OPTIONS[self._selected]
         if choice in self.DISABLED:
             self._notice_at = self._time
+            self.game.audio.play("deny")
         elif choice == "New Game":
             self._leaving_at = self._time
+            self.game.audio.play("menu_select")
+            self.game.audio.stop_music(self.FADE_OUT_MS)
         elif choice == "Quit":
             self.game.quit()
 
@@ -116,7 +123,7 @@ class MainMenu(State):
         canvas = self._canvas
         canvas.blit(title.sky(), (0, 0))
         for i, (x, y, phase) in enumerate(title.stars()):
-            glow = 0.55 + (0.45 * math.sin(t / self.STAR_TWINKLE_MS + phase) if i % 3 == 0 else 0)
+            glow = 0.55 + (0.4 * math.sin(t / self.STAR_TWINKLE_MS + phase) if i % 5 == 0 else 0)
             canvas.set_at((x, y), lerp(canvas.get_at((x, y)), (255, 246, 222), glow))
         for i, (y, length, speed, start) in enumerate(self.CLOUDS):
             x = (start + t * speed) % (title.WIDTH + length) - length
@@ -136,26 +143,13 @@ class MainMenu(State):
         self._paint_motes(canvas, t)
         pygame.transform.scale(canvas, self._scaled.get_size(), self._scaled)
 
-    @staticmethod
-    def _paint_glitter(canvas: pygame.Surface, t: float) -> None:
-        """The sun's path on the water: dashes that sway and flicker."""
-        sea_height = title.HEIGHT - title.HORIZON
-        for row, y in enumerate(range(title.HORIZON + 1, title.HEIGHT, 2)):
-            depth = (y - title.HORIZON) / sea_height
-            half = title.SUN_RADIUS * (0.7 + depth * 1.8)
-            color = lerp(title.GLINT, title.SEA_BANDS[3], depth * 0.85)
-            for k in range(2):
-                if (int(t / 420) + row * 3 + k) % 9 == 0:
-                    continue
-                x = title.SUN[0] + half * math.sin(row * 1.7 + k * 2.1 + t / 4000 * (1 + k * 0.3))
-                w = 1 + (row + k) % 4
-                pygame.draw.line(canvas, title.SUN_CORE if depth < 0.12 else color,
-                                 (round(x - w / 2), y), (round(x + w / 2), y))
-            # Faint glints far from the sun path, drifting with the swell
-            gx = (row * 53 - t * 0.002 * (1 + depth)) % title.WIDTH
-            if math.sin(t / 1400 + row) > 0.85:
-                glint = lerp(title.SEA_BANDS[1], title.GLINT, 0.4 - depth / 3)
-                canvas.set_at((round(gx), y), glint)
+    def _paint_glitter(self, canvas: pygame.Surface, t: float) -> None:
+        """The sun path itself is still (baked into the sea); a few spots glint slowly."""
+        for x, y, w, phase in title.sparkles():
+            glow = math.sin(t / self.SPARKLE_MS + phase)
+            if glow > 0.3:
+                color = lerp(title.GLINT, title.SUN_CORE, glow)
+                pygame.draw.line(canvas, color, (x - w // 2, y), (x + w // 2, y))
 
     def _paint_motes(self, canvas: pygame.Surface, t: float) -> None:
         """Golden motes rising from Athena's olive, a hint of what is to come."""

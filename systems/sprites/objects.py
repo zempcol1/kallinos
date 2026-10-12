@@ -36,6 +36,8 @@ class ObjectType:
             as ``links = (north, east, south, west)`` (fences).
         see_through: fades while the player stands behind it (tree crowns).
         harvestable: ``draw`` accepts ``ripe=False`` for the picked look.
+        options: extra map JSON keys passed to ``draw`` as keywords (a house's
+            ``door`` column).
     """
 
     draw: Callable[..., pygame.Surface]
@@ -45,17 +47,22 @@ class ObjectType:
     tiled: bool = False
     see_through: bool = False
     harvestable: bool = False
+    options: tuple[str, ...] = ()
 
 
 OBJECT_TYPES: dict[str, ObjectType] = {
-    # Buildings
-    "house_wall": ObjectType(structures.house_wall, shadow=structures.house_wall_shadow),
-    "house_roof": ObjectType(structures.house_roof),
-    "house_door": ObjectType(structures.house_door),
-    "temple": ObjectType(structures.temple, shadow=structures.temple_shadow),
+    # Buildings and props
+    "house": ObjectType(structures.house, SORTED, structures.house_footprint,
+                        structures.building_shadow, see_through=True, options=("door",)),
+    "temple": ObjectType(structures.temple, SORTED, structures.temple_footprint,
+                         structures.building_shadow, see_through=True),
     "stone_wall": ObjectType(structures.stone_wall, shadow=structures.stone_wall_shadow),
     "fence": ObjectType(structures.fence_piece, SORTED, structures.fence_footprint,
                         structures.fence_shadow, tiled=True),
+    "well": ObjectType(structures.well, SORTED, structures.well_footprint,
+                       structures.small_shadow),
+    "amphorae": ObjectType(structures.amphorae, SORTED, structures.amphorae_footprint,
+                           structures.small_shadow),
     # Nature
     "olive_tree": ObjectType(nature.olive_tree, SORTED, nature.olive_tree_footprint,
                              nature.tree_shadow, see_through=True),
@@ -63,6 +70,8 @@ OBJECT_TYPES: dict[str, ObjectType] = {
                           nature.cypress_shadow, see_through=True),
     "plane_tree": ObjectType(nature.plane_tree, SORTED, nature.plane_tree_footprint,
                              nature.tree_shadow, see_through=True),
+    "aleppo_pine": ObjectType(nature.aleppo_pine, SORTED, nature.aleppo_pine_footprint,
+                              nature.pine_shadow, see_through=True),
     "fig_tree": ObjectType(nature.fig_tree, SORTED, nature.fig_tree_footprint,
                            nature.tree_shadow, see_through=True, harvestable=True),
     "bush": ObjectType(nature.bush, SORTED, nature.bush_footprint, nature.bush_shadow),

@@ -1,4 +1,4 @@
-"""Built things: houses, the terrace stone wall, fences and the temple.
+"""Built things: houses, the terrace stone wall, fences, the temple, props.
 
 Houses and walls are baked into the ground layer. Fences are drawn per tile
 (``fence_piece``) and connect to neighbouring fence tiles, so corners, ends
@@ -7,11 +7,13 @@ and junctions get proper posts.
 
 from __future__ import annotations
 
+import math
+
 import pygame
 
 import settings as s
 from systems.sprites.pixel_art import (
-    cached, lerp, outline, scale, seeded, shade,
+    cached, lerp, outline, scale, seeded, shade, stamp,
 )
 
 T = s.TILE_SIZE
@@ -34,8 +36,21 @@ SHUTTER = (74, 116, 146)
 SHUTTER_DARK = (50, 82, 110)
 WINDOW = (46, 38, 46)
 BRONZE = (200, 156, 72)
-MARBLE = (242, 239, 234)
-MARBLE_SHADE = (205, 200, 192)
+MARBLE = (240, 234, 220)
+MARBLE_LIGHT = (252, 250, 242)
+MARBLE_SHADE = (200, 192, 178)
+MARBLE_DEEP = (150, 142, 134)
+PAINT_BLUE = (62, 98, 150)
+PAINT_BLUE_DARK = (40, 66, 110)
+PAINT_RED = (176, 84, 62)
+GOLD = (212, 168, 68)
+CELLA = (52, 44, 52)
+WATER = (40, 62, 84)
+WALL_WASHES = (  # variant → (wash, light, shade, deep)
+    ((238, 230, 210), (250, 246, 234), (214, 202, 178), (186, 172, 148)),
+    ((228, 204, 160), (242, 222, 184), (204, 178, 134), (172, 146, 106)),
+    ((234, 212, 196), (246, 230, 218), (210, 186, 170), (178, 152, 138)),
+)
 STONE = (170, 156, 128)
 STONE_DARK = (122, 110, 90)
 STONE_DEEP = (84, 74, 62)
@@ -58,6 +73,35 @@ def _canvas(w: int, h: int) -> pygame.Surface:
 
 # ── House ────────────────────────────────────────────────────────────────────
 
+def _masked(dest: pygame.Surface, pattern: pygame.Surface, points: list) -> None:
+    """Blit ``pattern`` onto ``dest`` only inside the polygon ``points``."""
+    layer = pattern.copy()
+    mask = pygame.Surface(pattern.get_size(), pygame.SRCALPHA)
+    pygame.draw.polygon(mask, (255, 255, 255, 255), points)
+    layer.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+    dest.blit(layer, (0, 0))
+
+
+def _roof_tiles(size: tuple[int, int], tint: float, seed: object) -> pygame.Surface:
+    """Rows of curved cover tiles over flat pans, tinted for one roof face."""
+    rng = seeded("roof_tiles", size, tint, seed)
+    surf = pygame.Surface(size, pygame.SRCALPHA)
+    period, course = 6, 5
+    surf.fill(shade(TERRACOTTA_DARK, tint))
+    for y in range(-1, size[1], course):
+        for x in range(0, size[0], period):
+            t = tint + rng.uniform(-0.06, 0.06)
+            pan, cover = shade(TERRACOTTA_DARK, t), shade(TERRACOTTA, t)
+            pygame.draw.rect(surf, pan, (x + 3, y, 3, course))
+            pygame.draw.line(surf, shade(pan, 0.12), (x + 3, y), (x + 5, y))
+            pygame.draw.rect(surf, cover, (x, y, 3, course))
+            pygame.draw.line(surf, shade(cover, 0.3), (x, y), (x, y + course - 1))
+            pygame.draw.line(surf, shade(cover, -0.22), (x + 2, y), (x + 2, y + course - 1))
+            pygame.draw.line(surf, shade(cover, -0.15), (x, y + course - 1),
+                             (x + 2, y + course - 1))
+    return surf
+
+
 def _window(surf: pygame.Surface, x: int, y: int, flowers: bool) -> None:
     """A small window with open blue shutters, wooden lintel and stone sill.
 
@@ -73,7 +117,6 @@ def _window(surf: pygame.Surface, x: int, y: int, flowers: bool) -> None:
             surf.set_at((sx, sy), SHUTTER_DARK)
     pygame.draw.line(surf, WOOD, (x - 1, y - 1), (x + 5, y - 1))
     pygame.draw.line(surf, STONE_LIGHT, (x - 1, y + 6), (x + 5, y + 6))
-    pygame.draw.line(surf, PLASTER_SHADE, (x - 1, y + 7), (x + 5, y + 7))
     if flowers:
         # A terracotta pot of geraniums on the sill
         pygame.draw.rect(surf, TERRACOTTA, (x + 1, y + 4, 3, 2))
@@ -84,136 +127,129 @@ def _window(surf: pygame.Surface, x: int, y: int, flowers: bool) -> None:
             surf.set_at((fx, fy), color)
 
 
-@cached
-def house_wall(w: int, h: int, variant: int = 0) -> pygame.Surface:
-    """Whitewashed wall: eave shadow, plaster texture, windows, stone plinth."""
-    surf = _canvas(w, h)
-    pw, ph = surf.get_size()
-    rng = seeded("house_wall", w, h, variant)
-    surf.fill(PLASTER)
-
-    # Soft, uneven whitewash: faint blotches and a few worn patches
-    for _ in range(pw * ph // 28):
-        x, y = rng.randrange(pw), rng.randrange(ph)
-        color = rng.choice((PLASTER_LIGHT, lerp(PLASTER, PLASTER_SHADE, 0.4)))
-        surf.set_at((x, y), color)
-    for _ in range(w // 3):
-        x, y = rng.randrange(4, pw - 6), rng.randrange(5, ph - 5)
-        pygame.draw.line(surf, lerp(PLASTER, PLASTER_SHADE, 0.6), (x, y), (x + 2, y))
-        surf.set_at((x + 1, y + 1), lerp(PLASTER, STONE, 0.5))
-
-    # Shadow under the roof overhang, dithered at its lower edge
-    pygame.draw.rect(surf, PLASTER_DEEP, (0, 0, pw, 2))
-    pygame.draw.line(surf, PLASTER_SHADE, (0, 2), (pw, 2))
-    for x in range(0, pw, 2):
-        surf.set_at((x, 3), PLASTER_SHADE)
-
-    # Corners: lit on the left, shaded on the right
-    pygame.draw.line(surf, PLASTER_LIGHT, (0, 3), (0, ph))
-    pygame.draw.line(surf, PLASTER_SHADE, (pw - 2, 2), (pw - 2, ph))
-    pygame.draw.line(surf, PLASTER_DEEP, (pw - 1, 0), (pw - 1, ph))
-
-    # Stone plinth
-    pygame.draw.rect(surf, STONE, (0, ph - 3, pw, 3))
-    pygame.draw.line(surf, STONE_LIGHT, (0, ph - 3), (pw, ph - 3))
-    pygame.draw.line(surf, STONE_DARK, (0, ph - 1), (pw, ph - 1))
-    for x in range(rng.randint(2, 5), pw, 7):
-        surf.set_at((x, ph - 2), STONE_DARK)
-
-    if w >= 3:
-        win_y = ph - 12
-        for i, tile_x in enumerate((0, w - 1)):
-            _window(surf, tile_x * T + 6, win_y, flowers=(i + variant) % 2 == 0)
-    return scale(surf)
+_AMPHORA = [  # a clay storage jar with a painted black band
+    "..LLl..",
+    "...d...",
+    ".dlLld.",
+    "dlLlllD",
+    "dkkkkkD",
+    ".lllld.",
+    ".dllDD.",
+    "..dDD..",
+    "...D...",
+]
+_AMPHORA_PALETTE = {"L": TERRACOTTA_GLOW, "l": TERRACOTTA, "d": TERRACOTTA_DARK,
+                    "D": TERRACOTTA_DEEP, "k": (60, 40, 36)}
 
 
-def house_wall_shadow(w: int, h: int, variant: int = 0) -> Shapes:
-    pw, ph = w * T, h * T
-    return [("rect", (2, ph, pw, 3)), ("rect", (pw, 3, 3, ph))]
+def _amphora(surf: pygame.Surface, x: int, y: int, tall: bool) -> None:
+    """A clay jar standing with its foot centered at (x, y); short jars lose the neck."""
+    rows = _AMPHORA if tall else _AMPHORA[2:]
+    stamp(surf, rows, _AMPHORA_PALETTE, (x - 3, y - len(rows) + 1))
 
 
 @cached
-def house_roof(w: int, h: int, variant: int = 0) -> pygame.Surface:
-    """Greek terracotta roof: rows of curved cover tiles, ridge and antefixes."""
+def house(w: int = 6, h: int = 4, variant: int = 0, door: int | None = None) -> pygame.Surface:
+    """Village house in 3/4 view: hipped terracotta roof over a washed wall.
+
+    ``door`` is the door's tile column (default: the middle); ``variant``
+    picks the wall wash and the small details (flowers, jars, a vine).
+    """
     surf = _canvas(w, h)
     pw, ph = surf.get_size()
-    rng = seeded("house_roof", w, h, variant)
-    period, course = 6, 5
-    ridge_h, eave_h = 4, 4
-    surf.fill(TERRACOTTA_DARK)
+    rng = seeded("house", w, h, variant)
+    wash, wash_light, wash_shade, wash_deep = WALL_WASHES[variant % len(WALL_WASHES)]
+    roof_h = round(ph * 0.55)
+    wall = pygame.Rect(2, roof_h - 2, pw - 4, ph - roof_h + 2)
 
-    # Courses of flat pan tiles (tegulae) with curved cover tiles (imbrices)
-    # over the joints; every tile is a little different in hue.
-    for y in range(ridge_h, ph - eave_h, course):
-        light_bias = 0.1 * (1 - y / ph)          # tiles near the ridge catch more sun
-        for x in range(0, pw, period):
-            tint = rng.uniform(-0.07, 0.07) + light_bias
-            pan = shade(TERRACOTTA_DARK, tint)
-            pygame.draw.rect(surf, pan, (x + 3, y, 3, course))
-            pygame.draw.line(surf, shade(pan, 0.1), (x + 3, y), (x + 5, y))      # overlap lip
-            surf.set_at((x + 3, y + 1), shade(pan, -0.25))                       # cover's shadow
-            cover = shade(TERRACOTTA, tint)
-            pygame.draw.rect(surf, cover, (x, y, 3, course))
-            pygame.draw.line(surf, shade(cover, 0.3), (x, y), (x, y + course - 1))
-            pygame.draw.line(surf, shade(cover, -0.22), (x + 2, y), (x + 2, y + course - 1))
-            surf.set_at((x + 1, y), shade(cover, 0.15))                          # rounded end
-            pygame.draw.line(surf, shade(cover, -0.18), (x, y + course - 1),
-                             (x + 2, y + course - 1))
+    # Wall: uneven wash, lit left corner, shaded right corner, stone plinth
+    pygame.draw.rect(surf, wash, wall)
+    for _ in range(wall.w * wall.h // 24):
+        x, y = rng.randrange(wall.left, wall.right), rng.randrange(wall.top, wall.bottom)
+        surf.set_at((x, y), rng.choice((wash_light, lerp(wash, wash_shade, 0.5))))
+    pygame.draw.line(surf, wash_light, (wall.left, wall.top), (wall.left, wall.bottom))
+    pygame.draw.rect(surf, wash_shade, (wall.right - 3, wall.top, 2, wall.h))
+    pygame.draw.line(surf, wash_deep, (wall.right - 1, wall.top), (wall.right - 1, wall.bottom))
+    pygame.draw.rect(surf, wash_deep, (wall.left, roof_h, wall.w, 3))         # eave shadow
+    for x in range(wall.left, wall.right, 2):
+        surf.set_at((x, roof_h + 3), wash_shade)
+    for x in range(wall.left + 3, wall.right - 3, 6):                          # rafter ends
+        pygame.draw.rect(surf, WOOD, (x, roof_h, 2, 2))
+        surf.set_at((x, roof_h), WOOD_LIGHT)
+    plinth = pygame.Rect(wall.left, ph - 4, wall.w, 4)
+    pygame.draw.rect(surf, STONE, plinth)
+    pygame.draw.line(surf, STONE_LIGHT, plinth.topleft, (plinth.right - 1, plinth.top))
+    pygame.draw.line(surf, STONE_DARK, (plinth.left, ph - 1), (plinth.right - 1, ph - 1))
+    for x in range(plinth.left + rng.randint(2, 5), plinth.right, 6):
+        surf.set_at((x, ph - 3), STONE_DARK)
 
-    # Ridge: a row of rounded ridge tiles
-    pygame.draw.rect(surf, TERRACOTTA_DEEP, (0, 0, pw, ridge_h))
-    for x in range(0, pw, 4):
-        pygame.draw.rect(surf, TERRACOTTA, (x, 0, 3, ridge_h - 1))
-        pygame.draw.line(surf, TERRACOTTA_GLOW, (x, 0), (x + 1, 0))
-        surf.set_at((x + 2, ridge_h - 2), TERRACOTTA_DARK)
+    # Door: plank door in a stone frame, with a lintel and a worn step
+    door_col = w // 2 if door is None else max(0, min(w - 1, door))
+    frame = pygame.Rect(door_col * T + 2, roof_h + 4, 12, ph - roof_h - 5)
+    pygame.draw.rect(surf, STONE, frame)
+    pygame.draw.line(surf, STONE_LIGHT, frame.topleft, (frame.left, frame.bottom - 1))
+    pygame.draw.rect(surf, STONE_LIGHT, (frame.left - 1, frame.top - 1, frame.w + 2, 3))
+    leaf = frame.inflate(-4, -2).move(0, 1)
+    pygame.draw.rect(surf, WOOD, leaf)
+    for x in range(leaf.left + 2, leaf.right - 1, 2):
+        pygame.draw.line(surf, WOOD_DARK, (x, leaf.top + 1), (x, leaf.bottom - 1))
+    pygame.draw.line(surf, WOOD_LIGHT, (leaf.left, leaf.top), (leaf.left, leaf.bottom - 1))
+    pygame.draw.line(surf, shade(WOOD_DARK, -0.3), leaf.topleft, (leaf.right - 1, leaf.top))
+    for y in (leaf.top + 4, leaf.bottom - 5):
+        pygame.draw.line(surf, WOOD_DARK, (leaf.left, y), (leaf.right - 1, y))
+    surf.set_at((leaf.right - 3, leaf.centery), BRONZE)
+    pygame.draw.rect(surf, STONE_LIGHT, (frame.left - 2, ph - 3, frame.w + 4, 2))
 
-    # Eave: antefixes (little palmette end tiles) over a dark overhang
-    eave_y = ph - eave_h
-    pygame.draw.rect(surf, TERRACOTTA_DARK, (0, eave_y, pw, eave_h))
-    pygame.draw.line(surf, TERRACOTTA_DEEP, (0, ph - 1), (pw, ph - 1))
-    for x in range(0, pw, period):
-        pygame.draw.rect(surf, TERRACOTTA_LIGHT, (x, eave_y, 3, 2))
-        surf.set_at((x + 1, eave_y + 2), TERRACOTTA_LIGHT)
-        surf.set_at((x + 1, eave_y), TERRACOTTA_GLOW)
+    # Windows on the tiles left and right of the door
+    for col in (door_col - 2, door_col + 2) if w >= 5 else (door_col - 1, door_col + 1):
+        if 0 <= col < w:
+            _window(surf, col * T + 5, roof_h + 6, flowers=(col + variant) % 2 == 0)
+    if variant % 2 == 0:                       # storage jars by the door
+        _amphora(surf, frame.right + 4, ph - 2, tall=True)
+    if variant % 3 == 1:                       # a vine climbing the left corner
+        for y in range(roof_h + 2, ph - 3):
+            x = wall.left + 2 + round(math.sin(y * 0.7) * 1.5)
+            surf.set_at((x, y), LEAF if y % 3 else shade(LEAF, 0.25))
+        for gy in (roof_h + 6, roof_h + 12):
+            surf.set_at((wall.left + 4, gy), (96, 60, 110))
 
-    # Gable ends: lit barge board on the left, shaded on the right
-    pygame.draw.rect(surf, TERRACOTTA_LIGHT, (0, 0, 2, ph - 1))
-    pygame.draw.line(surf, TERRACOTTA_GLOW, (0, 0), (0, ph - 2))
-    pygame.draw.rect(surf, TERRACOTTA_DEEP, (pw - 2, 0, 2, ph))
+    # Hipped roof: back slope, two hips and the big front slope, each its own shade
+    # (1px margin all round so the outline is never clipped)
+    ridge_y = round(roof_h * 0.3)
+    inset = round(roof_h * 0.62)
+    l, t, r, b = 1, 1, pw - 2, roof_h - 1
+    faces = [
+        (-0.28, [(l, t), (r, t), (r - inset, ridge_y), (inset, ridge_y)]),        # back
+        (0.14, [(l, t), (inset, ridge_y), (l, b)]),                              # left hip
+        (-0.2, [(r, t), (r - inset, ridge_y), (r, b)]),                          # right hip
+        (0.0, [(inset, ridge_y), (r - inset, ridge_y), (r, b), (l, b)]),         # front
+    ]
+    for tint, points in faces:
+        _masked(surf, _roof_tiles((pw, roof_h), tint, (w, h, variant)), points)
+    # Ridge and hip caps
+    for start, stop in (((inset, ridge_y), (l, b)), ((r - inset, ridge_y), (r, b))):
+        pygame.draw.line(surf, TERRACOTTA_LIGHT, start, stop, 2)
+        pygame.draw.line(surf, TERRACOTTA_DEEP, (start[0], start[1] + 2), (stop[0], stop[1] + 1))
+    pygame.draw.line(surf, TERRACOTTA_DEEP, (inset, ridge_y + 1), (r - inset, ridge_y + 1))
+    for x in range(inset, r - inset + 1, 3):
+        pygame.draw.line(surf, TERRACOTTA_GLOW, (x, ridge_y - 1), (x + 1, ridge_y - 1))
+        surf.set_at((x, ridge_y), TERRACOTTA_LIGHT)
+    # Front eave with antefixes
+    pygame.draw.line(surf, TERRACOTTA_DEEP, (l, b), (r, b))
+    for x in range(3, r - 2, 6):
+        pygame.draw.rect(surf, TERRACOTTA_LIGHT, (x, b - 2, 3, 2))
+        surf.set_at((x + 1, b - 2), TERRACOTTA_GLOW)
     return scale(outline(surf, OUTLINE))
 
 
-@cached
-def house_door(w: int = 1, h: int = 1, variant: int = 0) -> pygame.Surface:
-    """Plank door with a bronze ring, set in a stone frame above a step."""
-    surf = _canvas(w, h)
-    pw, ph = surf.get_size()
-    frame = pygame.Rect(pw // 2 - 6, 1, 12, ph - 3)
-    door = pygame.Rect(frame.x + 2, frame.y + 3, frame.w - 4, frame.h - 3)
+def house_footprint(w: int, h: int) -> list[tuple[int, int, int, int]]:
+    pw, ph = w * T, h * T
+    return [(2, 8, pw - 4, ph - 9)]
 
-    pygame.draw.rect(surf, STONE, frame)
-    pygame.draw.line(surf, STONE_LIGHT, frame.topleft, (frame.left, frame.bottom - 1))
-    pygame.draw.line(surf, STONE_DARK, (frame.right - 1, frame.top),
-                     (frame.right - 1, frame.bottom))
-    pygame.draw.rect(surf, STONE_LIGHT, (frame.left - 1, frame.top, frame.w + 2, 2))  # lintel
-    pygame.draw.line(surf, STONE_DARK, (frame.left - 1, frame.top + 2),
-                     (frame.right, frame.top + 2))
 
-    pygame.draw.rect(surf, WOOD, door)
-    for x in range(door.left + 2, door.right - 1, 2):
-        pygame.draw.line(surf, WOOD_DARK, (x, door.top + 1), (x, door.bottom - 1))
-    pygame.draw.line(surf, WOOD_LIGHT, (door.left, door.top + 1), (door.left, door.bottom - 1))
-    pygame.draw.line(surf, shade(WOOD_DARK, -0.3), door.topleft, (door.right - 1, door.top))
-    for y in (door.top + 3, door.bottom - 3):   # cross battens
-        pygame.draw.line(surf, WOOD_DARK, (door.left, y), (door.right - 1, y))
-    ring = (door.right - 3, door.centery)
-    surf.set_at(ring, BRONZE)
-    surf.set_at((ring[0], ring[1] + 1), shade(BRONZE, -0.35))
-
-    # Threshold step
-    pygame.draw.rect(surf, STONE_LIGHT, (frame.left - 1, ph - 3, frame.w + 2, 2))
-    pygame.draw.line(surf, STONE_DARK, (frame.left - 1, ph - 1), (frame.right, ph - 1))
-    return scale(surf)
+def building_shadow(w: int, h: int, variant: int = 0) -> Shapes:
+    pw, ph = w * T, h * T
+    return [("rect", (3, ph, pw - 2, 3)), ("rect", (pw - 1, 8, 3, ph - 6))]
 
 
 # ── Terrace stone wall ───────────────────────────────────────────────────────
@@ -369,55 +405,159 @@ def fence_shadow(links: Links, variant: int = 0) -> Shapes:
 
 # ── Temple ───────────────────────────────────────────────────────────────────
 
+_OWL = [  # Athena's owl, painted in the pediment
+    "g.g",
+    "ggg",
+    "gwg",
+    ".g.",
+]
+
+
 @cached
-def temple(w: int, h: int, variant: int = 0) -> pygame.Surface:
-    """Small marble shrine: pediment, painted frieze, columns, steps."""
+def temple(w: int = 7, h: int = 6, variant: int = 0) -> pygame.Surface:
+    """Doric temple from the front and above: steps, columns, painted frieze,
+    a pediment with Athena's owl and the long tiled roof behind it."""
     surf = _canvas(w, h)
     pw, ph = surf.get_size()
-    pediment_h = 10
-    frieze_h = 4
-    steps_h = 6
-    col_top = pediment_h + frieze_h
+    cx = pw // 2
+    steps_h = 9
     col_bottom = ph - steps_h
+    col_top = col_bottom - round(ph * 0.32)
+    entab_top = col_top - 8
+    ped_h = round(pw * 0.16)
+    apex = entab_top - ped_h
+    depth = round(ph * 0.28)                  # how far the roof recedes on screen
 
-    # Dark cella interior behind the columns
-    pygame.draw.rect(surf, (58, 50, 56), (2, col_top, pw - 4, col_bottom - col_top))
+    # Roof: two long slopes running back from the pediment, ridge in the middle
+    left_slope = [(1, entab_top), (cx, apex), (cx, apex - depth), (1, entab_top - depth)]
+    right_slope = [(pw - 2, entab_top), (cx, apex), (cx, apex - depth),
+                   (pw - 2, entab_top - depth)]
+    _masked(surf, _roof_tiles((pw, ph), 0.1, ("temple", w, h)), left_slope)
+    _masked(surf, _roof_tiles((pw, ph), -0.22, ("temple", w, h)), right_slope)
+    pygame.draw.line(surf, TERRACOTTA_LIGHT, (cx, apex - depth), (cx, apex), 2)
+    for y in range(apex - depth, apex, 3):
+        surf.set_at((cx - 1, y), TERRACOTTA_GLOW)
+    pygame.draw.line(surf, TERRACOTTA_DEEP, (1, entab_top - depth), (1, entab_top))
+    pygame.draw.line(surf, TERRACOTTA_DEEP, (pw - 2, entab_top - depth), (pw - 2, entab_top))
+    for x, y in ((cx, apex - depth - 2), (2, entab_top - depth - 1),
+                 (pw - 3, entab_top - depth - 1)):
+        pygame.draw.rect(surf, GOLD, (x - 1, y, 3, 2))                     # acroteria
 
-    # Pediment (triangle) + painted frieze (Greeks painted their marble)
-    pygame.draw.polygon(surf, MARBLE, [(0, pediment_h), (pw // 2, 0), (pw - 1, pediment_h)])
-    pygame.draw.polygon(surf, MARBLE_SHADE,
-                        [(6, pediment_h - 1), (pw // 2, 3), (pw - 7, pediment_h - 1)])
-    pygame.draw.lines(surf, OUTLINE, False,
-                      [(0, pediment_h), (pw // 2, 0), (pw - 1, pediment_h)])
-    pygame.draw.rect(surf, MARBLE, (0, pediment_h, pw, frieze_h))
-    for x in range(2, pw - 2, 4):
-        color = (52, 100, 150) if (x // 4) % 2 else (212, 168, 68)
-        pygame.draw.rect(surf, color, (x, pediment_h + 1, 2, 2))
-    pygame.draw.line(surf, MARBLE_SHADE, (0, col_top - 1), (pw, col_top - 1))
+    # Pediment: marble cornice framing a blue tympanum with the owl
+    pygame.draw.polygon(surf, MARBLE, [(0, entab_top), (cx, apex - 1), (pw - 1, entab_top)])
+    inner = [(5, entab_top - 1), (cx, apex + 3), (pw - 6, entab_top - 1)]
+    pygame.draw.polygon(surf, PAINT_BLUE, inner)
+    pygame.draw.line(surf, PAINT_BLUE_DARK, inner[0], inner[2])
+    stamp(surf, _OWL, {"g": GOLD, "w": MARBLE_LIGHT}, (cx - 1, entab_top - 6))
+    pygame.draw.line(surf, MARBLE_LIGHT, (0, entab_top), (cx, apex - 1))
+    pygame.draw.line(surf, MARBLE_SHADE, (cx, apex - 1), (pw - 1, entab_top))
 
-    # Columns, evenly spaced, leaving a doorway in the middle
-    n_cols = 4 if w >= 4 else 2
-    spacing = (pw - 8) / (n_cols - 1)
-    for i in range(n_cols):
-        cx = int(4 + i * spacing)
-        pygame.draw.rect(surf, MARBLE, (cx - 3, col_top, 6, col_bottom - col_top))
-        pygame.draw.line(surf, MARBLE_SHADE, (cx + 2, col_top), (cx + 2, col_bottom))
-        pygame.draw.line(surf, MARBLE_SHADE, (cx - 1, col_top + 2), (cx - 1, col_bottom - 2))
-        pygame.draw.rect(surf, MARBLE, (cx - 4, col_top, 8, 2))
-        pygame.draw.rect(surf, MARBLE, (cx - 4, col_bottom - 2, 8, 2))
+    # Entablature: cornice, frieze of triglyphs and metopes, architrave
+    pygame.draw.rect(surf, MARBLE_LIGHT, (0, entab_top, pw, 2))
+    pygame.draw.line(surf, MARBLE_DEEP, (0, entab_top + 2), (pw - 1, entab_top + 2))
+    pygame.draw.rect(surf, MARBLE, (1, entab_top + 3, pw - 2, 5))
+    for x in range(3, pw - 4, 6):
+        pygame.draw.rect(surf, PAINT_BLUE, (x, entab_top + 3, 2, 3))
+        pygame.draw.line(surf, PAINT_BLUE_DARK, (x + 1, entab_top + 3), (x + 1, entab_top + 5))
+        surf.set_at((x + 4, entab_top + 4), PAINT_RED)
+    pygame.draw.line(surf, MARBLE_SHADE, (1, entab_top + 6), (pw - 2, entab_top + 6))
+    pygame.draw.line(surf, MARBLE_DEEP, (1, col_top - 1), (pw - 2, col_top - 1))
 
-    # Bronze doors
-    door = pygame.Rect(pw // 2 - 5, col_bottom - 14, 10, 14)
+    # Dark porch behind the columns, bronze doors with a warm glow inside
+    pygame.draw.rect(surf, CELLA, (3, col_top, pw - 6, col_bottom - col_top))
+    door = pygame.Rect(cx - 6, col_top + 6, 12, col_bottom - col_top - 6)
     pygame.draw.rect(surf, (120, 82, 44), door)
-    pygame.draw.line(surf, (82, 54, 30), door.midtop, door.midbottom)
+    pygame.draw.line(surf, (82, 54, 30), door.midtop, (door.centerx, door.bottom - 1))
+    pygame.draw.line(surf, (236, 196, 110), (door.centerx, door.top + 2),
+                     (door.centerx, door.bottom - 2))
+    for y in range(door.top + 2, door.bottom - 1, 4):
+        surf.set_at((door.left + 2, y), GOLD)
+        surf.set_at((door.right - 3, y), GOLD)
 
-    # Steps
+    # Fluted columns with capitals, lit from the left
+    n_cols = max(2, w - 1)
+    spacing = (pw - 14) / (n_cols - 1)
+    for i in range(n_cols):
+        x = round(4 + i * spacing)
+        pygame.draw.rect(surf, MARBLE, (x, col_top, 6, col_bottom - col_top))
+        pygame.draw.line(surf, MARBLE_LIGHT, (x, col_top), (x, col_bottom - 1))
+        pygame.draw.line(surf, MARBLE_LIGHT, (x + 2, col_top + 2), (x + 2, col_bottom - 1))
+        pygame.draw.line(surf, MARBLE_SHADE, (x + 4, col_top), (x + 4, col_bottom - 1))
+        pygame.draw.line(surf, MARBLE_DEEP, (x + 5, col_top), (x + 5, col_bottom - 1))
+        pygame.draw.rect(surf, MARBLE_LIGHT, (x - 1, col_top, 8, 2))          # abacus
+        pygame.draw.line(surf, MARBLE_SHADE, (x - 1, col_top + 2), (x + 6, col_top + 2))
+
+    # Three steps: lit treads, shaded risers
     for i in range(3):
-        y = col_bottom + i * 2
-        pygame.draw.rect(surf, MARBLE if i % 2 == 0 else MARBLE_SHADE, (i, y, pw - 2 * i, 2))
+        y = col_bottom + i * 3
+        inset = 2 - i
+        pygame.draw.rect(surf, MARBLE_LIGHT, (inset, y, pw - inset * 2, 1))
+        pygame.draw.rect(surf, MARBLE_SHADE, (inset, y + 1, pw - inset * 2, 2))
+        pygame.draw.line(surf, MARBLE_DEEP, (inset, y + 2), (pw - inset - 1, y + 2))
     return scale(outline(surf, OUTLINE))
 
 
-def temple_shadow(w: int, h: int, variant: int = 0) -> Shapes:
+def temple_footprint(w: int, h: int) -> list[tuple[int, int, int, int]]:
     pw, ph = w * T, h * T
-    return [("rect", (3, ph, pw - 2, 3)), ("rect", (pw, 12, 3, ph - 12))]
+    return [(1, round(ph * 0.35), pw - 2, ph - round(ph * 0.35) - 1)]
+
+
+# ── Village props ────────────────────────────────────────────────────────────
+
+@cached
+def well(w: int = 2, h: int = 2, variant: int = 0) -> pygame.Surface:
+    """Stone well with a wooden frame, rope and bucket."""
+    surf = _canvas(w, h)
+    pw, ph = surf.get_size()
+    rng = seeded("well", w, h, variant)
+    ring = pygame.Rect(3, ph - 18, pw - 6, 10)
+    # Cylinder front: coursed stones below the rim
+    pygame.draw.rect(surf, STONE_DARK, (ring.left, ring.centery, ring.w, 8))
+    pygame.draw.ellipse(surf, STONE_DARK, (ring.left, ring.centery + 3, ring.w, 9))
+    for y in range(ring.centery + 1, ring.centery + 10, 3):
+        x = ring.left + 1 + rng.randint(0, 2)
+        while x < ring.right - 2:
+            pygame.draw.line(surf, STONE, (x, y), (x + 3, y))
+            surf.set_at((x, y - 1), STONE_LIGHT)
+            x += 5
+    # Rim and dark water
+    pygame.draw.ellipse(surf, STONE_LIGHT, ring)
+    pygame.draw.ellipse(surf, STONE, ring.inflate(-2, -2).move(0, 1))
+    pygame.draw.ellipse(surf, WATER, ring.inflate(-6, -4).move(0, 1))
+    surf.set_at((ring.centerx - 3, ring.centery), (120, 150, 170))
+    # Frame, crossbar, rope and bucket
+    for x in (ring.left + 1, ring.right - 3):
+        pygame.draw.rect(surf, WOOD, (x, 3, 2, ring.centery - 3))
+        pygame.draw.line(surf, WOOD_LIGHT, (x, 3), (x, ring.centery - 1))
+    pygame.draw.rect(surf, WOOD_DARK, (ring.left, 3, ring.w, 2))
+    pygame.draw.line(surf, WOOD_LIGHT, (ring.left, 3), (ring.right - 1, 3))
+    pygame.draw.line(surf, (180, 160, 120), (pw // 2, 5), (pw // 2, 11))
+    pygame.draw.rect(surf, WOOD, (pw // 2 - 2, 11, 5, 4))
+    pygame.draw.line(surf, WOOD_DARK, (pw // 2 - 2, 12), (pw // 2 + 2, 12))
+    return scale(outline(surf, OUTLINE))
+
+
+def well_footprint(w: int, h: int) -> list[tuple[int, int, int, int]]:
+    pw, ph = w * T, h * T
+    return [(3, ph - 14, pw - 6, 12)]
+
+
+@cached
+def amphorae(w: int = 1, h: int = 1, variant: int = 0) -> pygame.Surface:
+    """A few clay storage jars."""
+    surf = _canvas(w, h)
+    pw, ph = surf.get_size()
+    for i in range(w * 2):
+        x = 4 + i * 7 + (variant % 2)
+        _amphora(surf, x, ph - 2, tall=(i + variant) % 2 == 0)
+    return scale(outline(surf, OUTLINE))
+
+
+def amphorae_footprint(w: int, h: int) -> list[tuple[int, int, int, int]]:
+    pw, ph = w * T, h * T
+    return [(1, ph - 6, pw - 2, 5)]
+
+
+def small_shadow(w: int, h: int, variant: int = 0) -> Shapes:
+    pw, ph = w * T, h * T
+    return [("ellipse", (2, ph - 5, pw, 5))]

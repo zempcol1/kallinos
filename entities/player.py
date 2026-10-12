@@ -14,7 +14,10 @@ class Player(Character):
     """The player character on the exploration map."""
 
     REACH = s.SCALED_TILE // 2   # how far in front of the feet interactions reach
-    _FACING_STEP = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}
+    DIAGONAL_GRACE_MS = 90       # keep a diagonal facing while one key is let go first
+    _FACING_STEP = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0),
+                    "up_left": (-0.7, -0.7), "up_right": (0.7, -0.7),
+                    "down_left": (-0.7, 0.7), "down_right": (0.7, 0.7)}
 
     def __init__(self, tile_x: int, tile_y: int) -> None:
         super().__init__(tile_x, tile_y, PLAYER_LOOK)
@@ -31,6 +34,7 @@ class Player(Character):
         self.xp_to_next = 30
 
         self.inventory = Inventory()
+        self._diagonal_grace = 0.0
 
     def handle_input(self, keys: pygame.key.ScancodeWrapper, dt: float,
                      collisions: list[pygame.Rect]) -> None:
@@ -48,10 +52,14 @@ class Player(Character):
             dy += dist
 
         self.moving = bool(dx or dy)
-        if dx:
-            self.facing = "right" if dx > 0 else "left"
-        elif dy:
-            self.facing = "down" if dy > 0 else "up"
+        if self.moving:
+            facing = self.facing_for(dx, dy)
+            if "_" in facing:
+                self._diagonal_grace = self.DIAGONAL_GRACE_MS
+            elif self._diagonal_grace > 0 and facing in self.facing.split("_"):
+                facing = self.facing          # releasing a diagonal: hold the pose
+            self.facing = facing
+        self._diagonal_grace = max(0.0, self._diagonal_grace - dt)
 
         # Normalize diagonal
         if dx and dy:
@@ -73,7 +81,8 @@ class Player(Character):
     def reach_rect(self) -> pygame.Rect:
         """The area in front of the player that interactions can reach."""
         dx, dy = self._FACING_STEP[self.facing]
-        return self.rect.move(dx * self.REACH, dy * self.REACH).inflate(self.REACH // 2,
+        return self.rect.move(round(dx * self.REACH), round(dy * self.REACH)).inflate(
+            self.REACH // 2,
                                                                         self.REACH // 2)
 
     def stop(self) -> None:

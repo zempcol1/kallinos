@@ -37,6 +37,7 @@ class NPC(Character):
             trim=tuple(data["trim"]) if "trim" in data else None,
             hair_style=data.get("hair_style", "short"),
             bearded=data.get("bearded", False),
+            face=data.get("face", "plain"),
         )
         return cls(data["id"], data["name"], data["x"], data["y"], look,
                    data.get("dialogue_idle", []))

@@ -36,7 +36,13 @@ ROCK = (46, 28, 52)
 ROCK_LIT = (132, 70, 82)
 ROCK_DARK = (28, 16, 34)
 MARBLE_LIT = (252, 210, 164)
+MARBLE_MID = (212, 160, 140)
 MARBLE_SHADE = (150, 96, 116)
+ROOF_LIT = (176, 92, 78)
+ROOF_SHADE = (110, 56, 68)
+FRIEZE = (76, 70, 122)
+CELLA = (54, 30, 52)
+GOLD = (236, 190, 96)
 LEAF_DARK = (26, 26, 38)
 LEAF = (40, 40, 52)
 LEAF_RIM = (196, 132, 78)
@@ -129,6 +135,53 @@ def sea() -> pygame.Surface:
     return surf
 
 
+def _temple(surf: pygame.Surface, x: int, base: int, width: int = 48) -> None:
+    """A Doric temple in the last light: the sun side glows, the rest is dusk."""
+    cx = x + width // 2
+    col_bottom = base - 6
+    col_top = col_bottom - 17
+    ent_top = col_top - 5
+    apex = ent_top - 9
+    depth = 6
+    # Roof slopes receding behind the pediment
+    pygame.draw.polygon(surf, ROOF_LIT, [(x - 1, ent_top), (cx, apex), (cx, apex - depth),
+                                         (x - 1, ent_top - depth)])
+    pygame.draw.polygon(surf, ROOF_SHADE, [(x + width, ent_top), (cx, apex), (cx, apex - depth),
+                                           (x + width, ent_top - depth)])
+    pygame.draw.line(surf, MARBLE_LIT, (cx, apex - depth), (cx, apex))
+    # Pediment with a dusk-blue tympanum
+    pygame.draw.polygon(surf, MARBLE_LIT, [(x - 2, ent_top), (cx, apex), (x + width + 1, ent_top)])
+    pygame.draw.polygon(surf, MARBLE_SHADE, [(cx, apex), (x + width + 1, ent_top), (cx, ent_top)])
+    pygame.draw.polygon(surf, FRIEZE, [(x + 4, ent_top - 1), (cx, apex + 3),
+                                       (x + width - 5, ent_top - 1)])
+    for px, py in ((cx, apex - depth - 1), (x - 1, ent_top - depth - 1),
+                   (x + width, ent_top - depth - 1)):
+        surf.set_at((px, py), GOLD)
+    # Entablature: architrave and a frieze of triglyphs
+    pygame.draw.rect(surf, MARBLE_LIT, (x - 1, ent_top, width + 2, 2))
+    pygame.draw.rect(surf, FRIEZE, (x, ent_top + 2, width, 3))
+    for i in range(x + 1, x + width - 1, 4):
+        pygame.draw.line(surf, MARBLE_MID, (i, ent_top + 2), (i, ent_top + 4))
+    pygame.draw.rect(surf, MARBLE_SHADE, (cx, ent_top, x + width + 1 - cx, 2))
+    # Dark porch, a warm glow through the doors, six fluted columns
+    pygame.draw.rect(surf, CELLA, (x + 2, col_top, width - 4, col_bottom - col_top))
+    pygame.draw.rect(surf, (156, 92, 76), (cx - 3, col_top + 5, 6, col_bottom - col_top - 5))
+    pygame.draw.line(surf, (236, 170, 104), (cx, col_top + 6), (cx, col_bottom - 1))
+    for i in range(6):
+        col_x = x + 1 + round(i * (width - 5) / 5)
+        lit = col_x < cx
+        pygame.draw.rect(surf, MARBLE_MID, (col_x, col_top, 4, col_bottom - col_top))
+        pygame.draw.line(surf, MARBLE_LIT if lit else MARBLE_MID, (col_x, col_top),
+                         (col_x, col_bottom - 1))
+        pygame.draw.line(surf, MARBLE_SHADE, (col_x + 3, col_top), (col_x + 3, col_bottom - 1))
+        pygame.draw.rect(surf, MARBLE_LIT if lit else MARBLE_MID, (col_x - 1, col_top, 6, 1))
+    # Three steps
+    for i in range(3):
+        y = col_bottom + i * 2
+        pygame.draw.line(surf, MARBLE_LIT, (x - i, y), (x + width - 1 + i, y))
+        pygame.draw.line(surf, MARBLE_SHADE, (x - i, y + 1), (x + width - 1 + i, y + 1))
+
+
 @cached
 def headland() -> pygame.Surface:
     """Cliff on the right with a small temple, catching the last light."""
@@ -151,24 +204,7 @@ def headland() -> pygame.Surface:
     for x in range(176, 200, 3):
         surf.set_at((x, HEIGHT - 26 + (x % 2)), (220, 200, 210))
 
-    # The temple: steps, six columns, entablature, pediment
-    tx, base = 214, top - 1
-    width = 42
-    for i in range(3):
-        pygame.draw.rect(surf, MARBLE_LIT if i == 0 else MARBLE_SHADE,
-                         (tx - i, base - 2 - i * 2, width + i * 2, 2))
-    col_top = base - 22
-    pygame.draw.rect(surf, (54, 30, 52), (tx + 2, col_top, width - 4, 16))
-    for i in range(6):
-        cx = tx + 3 + i * 7
-        pygame.draw.rect(surf, MARBLE_SHADE, (cx, col_top, 3, 16))
-        pygame.draw.line(surf, MARBLE_LIT, (cx, col_top), (cx, col_top + 15))
-    pygame.draw.rect(surf, MARBLE_LIT, (tx - 1, col_top - 4, width + 2, 4))
-    pygame.draw.line(surf, MARBLE_SHADE, (tx - 1, col_top - 1), (tx + width, col_top - 1))
-    pygame.draw.polygon(surf, MARBLE_LIT, [(tx - 2, col_top - 4), (tx + width // 2, col_top - 12),
-                                           (tx + width + 1, col_top - 4)])
-    pygame.draw.polygon(surf, MARBLE_SHADE, [(tx + 4, col_top - 5), (tx + width // 2, col_top - 9),
-                                             (tx + width - 4, col_top - 5)])
+    _temple(surf, 212, top - 1)
     return outline(surf, ROCK_DARK)
 
 

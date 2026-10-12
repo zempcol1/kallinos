@@ -41,7 +41,7 @@ class MainMenu(State):
     MENU_DELAY_MS = 1300
     MENU_FADE_MS = 500
     FADE_OUT_MS = 700
-    SHINE_EVERY_MS = 5200
+    SHINE_EVERY_MS = 9000
     SHINE_MS = 1000
     NOTICE_MS = 2200
     SHAKE_MS = 300
@@ -50,11 +50,16 @@ class MainMenu(State):
     MENU_Y = 404
     MENU_SPACING = 42
 
+    # The scene is mostly still: slow drifts and the occasional visitor.
     # (y, length, speed px/ms, start x) for drifting clouds, logical pixels
-    CLOUDS = [(30, 70, 0.0016, 10), (48, 46, 0.0024, 150), (66, 92, 0.0012, 60),
-              (82, 38, 0.0030, 200), (96, 60, 0.0020, 120)]
-    GULLS = [(40, 0.010, 0), (52, 0.008, 90), (34, 0.012, 170)]   # (y, speed, offset)
-    MOTES = 12
+    CLOUDS = [(30, 70, 0.0008, 10), (48, 46, 0.0012, 150), (66, 92, 0.0006, 60),
+              (82, 38, 0.0015, 200), (96, 60, 0.0010, 120)]
+    GULL_EVERY_MS = 40000              # a pair of gulls glides across now and then
+    GULL_SPEED = 0.016                 # logical px per ms
+    GULL_PAIR = [(0, 46), (14, 41)]    # (x offset, y) of each gull
+    STAR_TWINKLE_MS = 1800
+    MOTES = 6
+    MOTE_RISE_MS = 7000
 
     def __init__(self, game: Game) -> None:
         super().__init__(game)
@@ -110,10 +115,9 @@ class MainMenu(State):
         t = self._time
         canvas = self._canvas
         canvas.blit(title.sky(), (0, 0))
-        for x, y, phase in title.stars():
-            glow = 0.5 + 0.5 * math.sin(t / 700 + phase)
-            if glow > 0.3:
-                canvas.set_at((x, y), lerp(canvas.get_at((x, y)), (255, 246, 222), glow))
+        for i, (x, y, phase) in enumerate(title.stars()):
+            glow = 0.55 + (0.45 * math.sin(t / self.STAR_TWINKLE_MS + phase) if i % 3 == 0 else 0)
+            canvas.set_at((x, y), lerp(canvas.get_at((x, y)), (255, 246, 222), glow))
         for i, (y, length, speed, start) in enumerate(self.CLOUDS):
             x = (start + t * speed) % (title.WIDTH + length) - length
             canvas.blit(title.cloud(length, i), (round(x), y))
@@ -121,10 +125,13 @@ class MainMenu(State):
         canvas.blit(title.sea(), (0, title.HORIZON))
         self._paint_glitter(canvas, t)
         canvas.blit(title.headland(), (0, 0))
-        for i, (y, speed, offset) in enumerate(self.GULLS):
-            x = (offset + t * speed) % (title.WIDTH + 20) - 10
-            bob = round(math.sin(t / 700 + i * 2))
-            canvas.blit(title.gull(int(t // 240 + i) % 2), (round(x), y + bob))
+        flight = t % self.GULL_EVERY_MS
+        for i, (dx, y) in enumerate(self.GULL_PAIR):
+            x = flight * self.GULL_SPEED - 20 - dx
+            if -6 < x < title.WIDTH:
+                bob = round(math.sin(t / 1100 + i * 2))
+                flapping = int(t // 260 + i * 3) % 8 < 2   # long glides, a few wingbeats
+                canvas.blit(title.gull(0 if flapping else 1), (round(x), y + bob))
         canvas.blit(title.foreground(), (0, 0))
         self._paint_motes(canvas, t)
         pygame.transform.scale(canvas, self._scaled.get_size(), self._scaled)
@@ -137,23 +144,23 @@ class MainMenu(State):
             depth = (y - title.HORIZON) / sea_height
             half = title.SUN_RADIUS * (0.7 + depth * 1.8)
             color = lerp(title.GLINT, title.SEA_BANDS[3], depth * 0.85)
-            for k in range(3):
-                if (int(t / 170) + row * 3 + k) % 5 == 0:
+            for k in range(2):
+                if (int(t / 420) + row * 3 + k) % 9 == 0:
                     continue
-                x = title.SUN[0] + half * math.sin(row * 1.7 + k * 2.1 + t / 1500 * (1 + k * 0.3))
+                x = title.SUN[0] + half * math.sin(row * 1.7 + k * 2.1 + t / 4000 * (1 + k * 0.3))
                 w = 1 + (row + k) % 4
                 pygame.draw.line(canvas, title.SUN_CORE if depth < 0.12 else color,
                                  (round(x - w / 2), y), (round(x + w / 2), y))
             # Faint glints far from the sun path, drifting with the swell
-            gx = (row * 53 - t * 0.004 * (1 + depth)) % title.WIDTH
-            if math.sin(t / 600 + row) > 0.55:
+            gx = (row * 53 - t * 0.002 * (1 + depth)) % title.WIDTH
+            if math.sin(t / 1400 + row) > 0.85:
                 glint = lerp(title.SEA_BANDS[1], title.GLINT, 0.4 - depth / 3)
                 canvas.set_at((round(gx), y), glint)
 
     def _paint_motes(self, canvas: pygame.Surface, t: float) -> None:
         """Golden motes rising from Athena's olive, a hint of what is to come."""
         for i in range(self.MOTES):
-            life = (t / 3600 + i / self.MOTES) % 1.0
+            life = (t / self.MOTE_RISE_MS + i / self.MOTES) % 1.0
             x = 14 + (i * 29) % 78 + math.sin(life * math.tau + i) * 3
             y = 112 - life * 70
             brightness = math.sin(life * math.pi)

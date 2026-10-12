@@ -18,6 +18,8 @@ class Character:
     ground (jumps, falls) and ``alpha`` fades it, e.g. in cutscenes.
     """
 
+    DIAGONAL_RATIO = 0.4   # a look/move counts as diagonal when the minor axis is this big
+
     FOOT_WIDTH = s.SCALED_TILE // 2
     FOOT_HEIGHT = s.SCALED_TILE * 5 // 16
     FOOT_INSET = s.SCALED_TILE // 12   # gap between the feet and the tile's bottom edge
@@ -65,13 +67,20 @@ class Character:
         r = self.rect
         return self.sprite.get_rect(midbottom=(r.centerx, r.bottom))
 
+    @classmethod
+    def facing_for(cls, dx: float, dy: float) -> str | None:
+        """One of the 8 facings ("down", "up_left"...) for a direction, None if still."""
+        if abs(dx) < abs(dy) * cls.DIAGONAL_RATIO:
+            dx = 0
+        if abs(dy) < abs(dx) * cls.DIAGONAL_RATIO:
+            dy = 0
+        vertical = "down" if dy > 0 else "up" if dy < 0 else ""
+        horizontal = "right" if dx > 0 else "left" if dx < 0 else ""
+        return "_".join(part for part in (vertical, horizontal) if part) or None
+
     def face_towards(self, other_x: float, other_y: float) -> None:
         """Turn to look at a point (e.g. the player who started talking)."""
-        dx, dy = other_x - self.x, other_y - self.y
-        if abs(dx) > abs(dy):
-            self.facing = "right" if dx > 0 else "left"
-        else:
-            self.facing = "down" if dy > 0 else "up"
+        self.facing = self.facing_for(other_x - self.x, other_y - self.y) or self.facing
 
     def update_animation(self, dt: float) -> None:
         if self.moving:

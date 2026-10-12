@@ -5,8 +5,8 @@
   "pushback_tiles": 1,
   "combat_hint": "Choose ATTACK to strike with your weapon.",
   "missing_npc": "niko",
-  "missing_npc_path": [[17, 5], [17, 8]],
-  "missing_npc_return": [14, 9],
+  "missing_npc_path": [[17, 6], [17, 9]],
+  "missing_npc_return": [14, 10],
   "shimmer_object": "athenas_olive",
   "shimmer_ms": 2000,
 

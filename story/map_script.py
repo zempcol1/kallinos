@@ -15,7 +15,9 @@ class MapScript:
 
     Exploration owns the map, player and NPCs and calls these hooks; scripts
     drive the story through Exploration's public helpers (``show_toast``,
-    ``push_dialogue``, ``start_combat``, ``fade_out``, ``get_npc``...).
+    ``give_item``, ``push_dialogue``, ``start_combat``, ``fade_out``,
+    ``get_npc``...). Dialogue and combat take a callback for what comes next,
+    so a beat reads ``push_dialogue(lines, self._next_beat)``.
     """
 
     def __init__(self, scene: Exploration) -> None:
@@ -30,12 +32,6 @@ class MapScript:
 
     def update(self, dt: float) -> None:
         """Per-frame logic (trigger checks, timers)."""
-
-    def on_dialogue_complete(self, event_id: str) -> None:
-        """A dialogue pushed with ``on_complete=event_id`` has finished."""
-
-    def on_combat_victory(self) -> None:
-        """A fight started by this script was won."""
 
     def render(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
         """Draw script effects above the world, below the HUD."""

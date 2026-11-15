@@ -6,6 +6,7 @@ import pygame
 
 import settings as s
 from entities.character import Character
+from systems import controls
 from systems.inventory_system import Inventory
 from systems.sprites import PLAYER_LOOK
 
@@ -15,6 +16,7 @@ class Player(Character):
 
     REACH = s.SCALED_TILE // 2   # how far in front of the feet interactions reach
     DIAGONAL_GRACE_MS = 90       # keep a diagonal facing while one key is let go first
+    DIAGONAL = 0.7071            # 1/sqrt(2): diagonal steps are no faster than straight ones
     _FACING_STEP = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0),
                     "up_left": (-0.7, -0.7), "up_right": (0.7, -0.7),
                     "down_left": (-0.7, 0.7), "down_right": (0.7, 0.7)}
@@ -39,17 +41,9 @@ class Player(Character):
     def handle_input(self, keys: pygame.key.ScancodeWrapper, dt: float,
                      collisions: list[pygame.Rect]) -> None:
         """Move the player based on held keys, respecting collisions."""
-        dx, dy = 0.0, 0.0
         dist = self.speed * (dt / 1000.0)
-
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            dx -= dist
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            dx += dist
-        if keys[pygame.K_UP] or keys[pygame.K_w]:
-            dy -= dist
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-            dy += dist
+        step_x, step_y = controls.movement(keys)
+        dx, dy = step_x * dist, step_y * dist
 
         self.moving = bool(dx or dy)
         if self.moving:
@@ -61,11 +55,9 @@ class Player(Character):
             self.facing = facing
         self._diagonal_grace = max(0.0, self._diagonal_grace - dt)
 
-        # Normalize diagonal
         if dx and dy:
-            factor = 0.7071  # 1/sqrt(2)
-            dx *= factor
-            dy *= factor
+            dx *= self.DIAGONAL
+            dy *= self.DIAGONAL
 
         # Move X then Y separately for sliding along walls
         self.x += dx
@@ -81,9 +73,8 @@ class Player(Character):
     def reach_rect(self) -> pygame.Rect:
         """The area in front of the player that interactions can reach."""
         dx, dy = self._FACING_STEP[self.facing]
-        return self.rect.move(round(dx * self.REACH), round(dy * self.REACH)).inflate(
-            self.REACH // 2,
-                                                                        self.REACH // 2)
+        ahead = self.rect.move(round(dx * self.REACH), round(dy * self.REACH))
+        return ahead.inflate(self.REACH // 2, self.REACH // 2)
 
     def stop(self) -> None:
         """Halt the walk cycle (e.g. when a cutscene takes control)."""

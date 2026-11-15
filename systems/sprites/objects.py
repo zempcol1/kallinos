@@ -49,6 +49,10 @@ class ObjectType:
     harvestable: bool = False
     options: tuple[str, ...] = ()
 
+    def options_from(self, data: dict) -> dict:
+        """The ``options`` this map object entry sets, as keywords for ``draw``."""
+        return {key: data[key] for key in self.options if key in data}
+
 
 OBJECT_TYPES: dict[str, ObjectType] = {
     # Buildings and props

@@ -12,6 +12,11 @@ from ui.pixel_font import PixelFont
 PANEL_INSET = 5   # ornate panels: inner hairline distance from the border
 PANEL_STUD = 6    # ornate panels: corner stud size
 ORNAMENT_DIAMOND = 6
+BAR_BORDER = 2    # bars: dark frame around the track
+BAR_FRAME = (30, 24, 36)
+BAR_BACK = (64, 58, 70)
+BAR_TRAIL = (242, 224, 204)
+BAR_SHINE = 50    # how much lighter the fill's top highlight is
 
 
 # Nominal font size → pixel scale of the pixel font (≤ 26 → 2×, ≤ 40 → 3×, ...)
@@ -49,12 +54,22 @@ def draw_panel(surface: pygame.Surface, rect: pygame.Rect,
             pygame.draw.rect(surface, border, stud)
 
 
-def draw_bar(surface: pygame.Surface, rect: pygame.Rect, ratio: float,
-             color: tuple, back: tuple = (60, 60, 60)) -> None:
-    """Horizontal fill bar (HP, XP...) with ``ratio`` clamped to 0–1."""
-    ratio = max(0.0, min(1.0, ratio))
-    pygame.draw.rect(surface, back, rect)
-    pygame.draw.rect(surface, color, (rect.x, rect.y, int(rect.w * ratio), rect.h))
+def draw_bar(surface: pygame.Surface, rect: pygame.Rect, ratio: float, color: tuple,
+             trail: float | None = None) -> None:
+    """Framed fill bar (HP, later Menos or XP); ``ratio`` is 0–1.
+
+    ``trail`` is an optional second ratio drawn pale behind the fill: the
+    part that was just lost and is still draining away.
+    """
+    pygame.draw.rect(surface, BAR_FRAME, rect.inflate(BAR_BORDER * 2, BAR_BORDER * 2))
+    pygame.draw.rect(surface, BAR_BACK, rect)
+    if trail is not None:
+        pygame.draw.rect(surface, BAR_TRAIL, (rect.x, rect.y, round(rect.w * trail), rect.h))
+    fill = pygame.Rect(rect.x, rect.y, round(rect.w * ratio), rect.h)
+    if fill.w:
+        pygame.draw.rect(surface, color, fill)
+        shine = tuple(min(255, c + BAR_SHINE) for c in color)
+        pygame.draw.line(surface, shine, fill.topleft, (fill.right - 1, fill.top))
 
 
 @functools.cache
@@ -74,11 +89,18 @@ def draw_fade_strip(surface: pygame.Surface, rect: pygame.Rect, alpha: int = 150
 
 
 def draw_shadowed_text(surface: pygame.Surface, text: str, text_font: PixelFont,
-                       pos: tuple[int, int], color: tuple = s.COLOR_WHITE) -> pygame.Rect:
-    """Text with a drop shadow one font pixel down-right; returns the text rect."""
+                       pos: tuple[int, int], color: tuple = s.COLOR_WHITE,
+                       anchor: str = "topleft") -> pygame.Rect:
+    """Text with a drop shadow one font pixel down-right; returns the text rect.
+
+    ``anchor`` names the rect point that sits at ``pos`` ("center", "midtop",
+    "topright"...), so callers don't have to measure the text first.
+    """
+    label = text_font.render(text, True, color)
+    rect = label.get_rect(**{anchor: pos})
     offset = text_font.scale
-    surface.blit(text_font.render(text, True, s.COLOR_BLACK), (pos[0] + offset, pos[1] + offset))
-    return surface.blit(text_font.render(text, True, color), pos)
+    surface.blit(text_font.render(text, True, s.COLOR_BLACK), rect.move(offset, offset))
+    return surface.blit(label, rect)
 
 
 def draw_ornament_rules(surface: pygame.Surface, around: pygame.Rect, length: int = 70,

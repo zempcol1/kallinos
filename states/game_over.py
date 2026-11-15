@@ -8,6 +8,8 @@ import pygame
 
 import settings as s
 from game.state_machine import State
+from systems import controls
+from ui.menu import Menu
 from ui.widgets import font
 
 if TYPE_CHECKING:
@@ -17,36 +19,36 @@ if TYPE_CHECKING:
 class GameOver(State):
     """Offers a retry from the last checkpoint or a return to the title."""
 
-    OPTIONS = ["Retry", "Main Menu"]
+    RETRY, MAIN_MENU = "Retry", "Main Menu"
+    OPTIONS = (RETRY, MAIN_MENU)
     INPUT_DELAY_MS = 800  # Avoid skipping the screen with the key that ended combat
+    TITLE_Y = 200
+    SUBTITLE_Y = 250
+    MENU_Y = 340
+    MENU_SPACING = 50
 
     def __init__(self, game: Game) -> None:
         super().__init__(game)
-        self._selected = 0
+        self._menu = Menu(game.audio, self.OPTIONS)
         self._timer = 0.0
 
     def enter(self, params: dict | None = None) -> None:
         self.game.audio.stop_music()
-        self._selected = 0
+        self._menu.reset()
         self._timer = 0.0
 
     def handle_events(self, events: list[pygame.event.Event]) -> None:
         if self._timer < self.INPUT_DELAY_MS:
             return
-        for event in events:
-            if event.type != pygame.KEYDOWN:
-                continue
-            if event.key == pygame.K_UP:
-                self._selected = (self._selected - 1) % len(self.OPTIONS)
-            elif event.key == pygame.K_DOWN:
-                self._selected = (self._selected + 1) % len(self.OPTIONS)
-            elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+        for key in controls.pressed_keys(events):
+            if self._menu.handle_key(key):
+                self.game.audio.play("menu_select")
                 self._select()
                 return
 
     def _select(self) -> None:
         machine = self.game.state_machine
-        if self.OPTIONS[self._selected] == "Retry":
+        if self._menu.choice == self.RETRY:
             map_name = self.game.session.restore_checkpoint()
             machine.change("exploration", {"map": map_name})
         else:
@@ -60,14 +62,14 @@ class GameOver(State):
         cx = s.SCREEN_WIDTH // 2
 
         title = font(64).render("You have fallen", True, s.COLOR_HP_RED)
-        surface.blit(title, title.get_rect(center=(cx, 200)))
+        surface.blit(title, title.get_rect(center=(cx, self.TITLE_Y)))
         sub = font(26).render("But the Fates are not done with you yet.", True, s.COLOR_TEXT_DIM)
-        surface.blit(sub, sub.get_rect(center=(cx, 250)))
+        surface.blit(sub, sub.get_rect(center=(cx, self.SUBTITLE_Y)))
 
         if self._timer < self.INPUT_DELAY_MS:
             return
         for i, option in enumerate(self.OPTIONS):
-            selected = i == self._selected
+            selected = i == self._menu.selected
             color = s.COLOR_ACCENT_GOLD if selected else s.COLOR_WHITE
             text = font(36).render(f"> {option}" if selected else option, True, color)
-            surface.blit(text, text.get_rect(center=(cx, 340 + i * 50)))
+            surface.blit(text, text.get_rect(center=(cx, self.MENU_Y + i * self.MENU_SPACING)))

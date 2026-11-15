@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
 
 import pygame
 
 import settings as s
 from systems.sprites import character_shadow, item
+
+if TYPE_CHECKING:
+    from entities.player import Player
+    from states.exploration import Exploration
 
 
 class ItemPickup:
@@ -37,6 +42,23 @@ class ItemPickup:
 
     def interaction_rect(self) -> pygame.Rect:
         return self.rect.inflate(s.SCALED_TILE // 2, s.SCALED_TILE // 2)
+
+    # ── Interactable ─────────────────────────────────────────────────────────
+
+    def in_reach(self, player: Player) -> bool:
+        """Pickups are taken by standing on them."""
+        return not self.collected and self.interaction_rect().colliderect(player.rect)
+
+    @property
+    def prompt_anchor(self) -> tuple[int, int]:
+        return self.rect.midtop
+
+    def interact(self, scene: Exploration) -> None:
+        item_data = scene.give_item(self.item_id)
+        if item_data:
+            self.collected = True
+            scene.show_toast(f"Picked up {item_data['name']}")
+            scene.game.audio.play("pickup")
 
     def update(self, dt: float) -> None:
         self._bob_timer += dt

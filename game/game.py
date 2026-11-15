@@ -1,7 +1,5 @@
 """Game class — owns the main loop, display, clock, and state machine."""
 
-import sys
-
 import pygame
 
 import settings as s
@@ -13,14 +11,18 @@ from states.dialogue import Dialogue
 from states.combat import Combat
 from states.game_over import GameOver
 from states.title_card import TitleCard
+from systems import controls
 from systems.audio import Audio
 from systems.sprites import app_icon
 
 
 class Game:
-    """Top-level object that initializes Pygame and drives the game loop."""
+    """Top-level object that initializes Pygame and drives the game loop.
 
-    def __init__(self) -> None:
+    ``audio=False`` skips sound synthesis entirely (tests, screenshots).
+    """
+
+    def __init__(self, audio: bool = True) -> None:
         pygame.mixer.pre_init(s.AUDIO_RATE, -16, 1, s.AUDIO_BUFFER)
         pygame.init()
         pygame.display.set_icon(app_icon(s.ICON_SIZE))
@@ -29,7 +31,7 @@ class Game:
         self.clock = pygame.time.Clock()
         self.running = True
         self.session = GameSession(s.START_MAP)
-        self.audio = Audio()
+        self.audio = Audio(enabled=audio)
 
         # State machine setup
         self.state_machine = StateMachine()
@@ -44,37 +46,35 @@ class Game:
         self.state_machine.push("main_menu")
 
     def run(self) -> None:
-        """Main game loop: events → update → render → flip."""
+        """Main game loop: one ``step`` per frame, then flip."""
         while self.running:
-            dt = self.clock.tick(s.FPS)
-            events = pygame.event.get()
+            self.step(pygame.event.get(), self.clock.tick(s.FPS))
+            pygame.display.flip()
+        pygame.quit()
 
-            # Global keys: quit, mute
-            for event in events:
-                if event.type == pygame.QUIT:
-                    self.quit()
-                    return
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_m:
-                    self.audio.toggle_mute()
-
-            state = self.state_machine.current
-            if state is None:
+    def step(self, events: list[pygame.event.Event], dt: float) -> None:
+        """One frame: events → update → render (no flip, so it also runs headless)."""
+        # Global keys: quit, mute
+        for event in events:
+            if event.type == pygame.QUIT:
                 self.quit()
                 return
+            if event.type == pygame.KEYDOWN and event.key in controls.MUTE:
+                self.audio.toggle_mute()
 
-            state.handle_events(events)
-            state.update(dt)
-            self.audio.update()
+        state = self.state_machine.current
+        if state is None:
+            self.quit()
+            return
 
-            # Render the full stack so overlay states (dialogue) draw
-            # on top of the state below them.
-            for s_state in self.state_machine.stack:
-                s_state.render(self.screen)
+        state.handle_events(events)
+        state.update(dt)
+        self.audio.update()
 
-            pygame.display.flip()
-
-        pygame.quit()
-        sys.exit()
+        # Render the full stack so overlay states (dialogue) draw
+        # on top of the state below them.
+        for layer in self.state_machine.stack:
+            layer.render(self.screen)
 
     def new_game(self) -> None:
         """Start a fresh playthrough on the first map."""

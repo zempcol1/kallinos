@@ -7,7 +7,10 @@
       "hp": 18,
       "attack": 4,
       "defense": 1,
-      "xp_reward": 10
+      "xp_reward": 10,
+      "attack_text": "Vátrachos lunges!",
+      "attack_sound": "croak",
+      "defeat_text": "The Vátrachos croaks weakly and hops away!"
     }
   ]
 }

@@ -34,8 +34,7 @@ ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
 IMAGES_DIR = os.path.join(ASSETS_DIR, "images")
 SOUNDS_DIR = os.path.join(ASSETS_DIR, "sounds")
-DATA_DIR = os.path.join(ASSETS_DIR, "data")
-MAPS_DIR = os.path.join(DATA_DIR, "maps")
+DATA_DIR = os.path.join(ASSETS_DIR, "data")   # read through systems/content.py
 
 # ── Colors (from design.md palette) ────────────────────────────────
 # Menu / UI
@@ -47,6 +46,8 @@ COLOR_BUTTON_HOVER = (52, 73, 94)    # #34495E
 COLOR_WHITE = (255, 255, 255)
 COLOR_TEXT_DIM = (149, 165, 166)      # #95A5A6
 COLOR_BLACK = (0, 0, 0)
+COLOR_TEXT_DISABLED = (128, 124, 140)  # menu options that can't be chosen
+COLOR_PORTRAIT_BG = (44, 36, 54)       # behind portraits in dialogue and combat
 
 # Combat
 COLOR_COMBAT_BG = (26, 26, 46)       # #1A1A2E

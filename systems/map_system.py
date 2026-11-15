@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import json
-
 import pygame
 
 import settings as s
 from entities.prop import Prop
+from systems import content
 from systems.sprites import (
     OBJECT_TYPES, OVERHEAD, SORTED, dirt_path, earth, grass, missing_tile, scale,
 )
@@ -18,7 +17,7 @@ TILE_EARTH = 2
 
 
 class TileMap:
-    """Loads a JSON map and pre-renders it into layers.
+    """A map built from its JSON data and pre-rendered into layers.
 
     - Ground layer: tiles, ground objects (houses, walls) and every shadow.
     - Props: sorted objects (trees, bushes, fences), drawn depth-sorted with
@@ -30,10 +29,7 @@ class TileMap:
 
     SHADOW_COLOR = (36, 30, 52, 72)   # cool, translucent: reads as late-afternoon shade
 
-    def __init__(self, path: str) -> None:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
+    def __init__(self, data: dict) -> None:
         self.name: str = data["name"]
         self.display_name: str = data.get("display_name", self.name)
         self.script: str | None = data.get("script")
@@ -48,7 +44,8 @@ class TileMap:
         self.objects: list[dict] = data.get("objects", [])
         self.collisions: list[pygame.Rect] = [self._tile_rect(r)
                                               for r in data.get("collisions", [])]
-        self.triggers: list[dict] = data.get("triggers", [])
+        self.triggers: dict[str, pygame.Rect] = {t["id"]: self._tile_rect(t)
+                                                 for t in data.get("triggers", [])}
         self.npc_data: list[dict] = data.get("npcs", [])
         self.item_pickup_data: list[dict] = data.get("item_pickups", [])
 
@@ -66,6 +63,11 @@ class TileMap:
         self._overhead_layer: pygame.Surface | None = None
         self._build()
 
+    @classmethod
+    def load(cls, name: str) -> TileMap:
+        """The map stored as ``assets/data/maps/<name>.json``."""
+        return cls(content.load_map(name))
+
     @staticmethod
     def _tile_rect(r: dict) -> pygame.Rect:
         """Convert a {x, y, w, h} tile-unit dict (fractions allowed) into a pixel rect."""
@@ -75,10 +77,8 @@ class TileMap:
         )
 
     def get_trigger(self, trigger_id: str) -> pygame.Rect | None:
-        for t in self.triggers:
-            if t["id"] == trigger_id:
-                return self._tile_rect(t)
-        return None
+        """The trigger zone with this id, in world pixels."""
+        return self.triggers.get(trigger_id)
 
     def tile_at(self, x: float, y: float) -> int | None:
         """Ground tile id under a world position (None outside the map)."""
@@ -177,13 +177,12 @@ class TileMap:
             if obj.get("solid", True):
                 self.collisions.extend(footprints)
 
-            options = {key: obj[key] for key in kind.options if key in obj}
             if kind.layer == SORTED:
-                self.props.append(Prop(obj, kind, dest, footprints, links))
+                self.props.append(Prop(obj, kind, dest, footprints, geometry))
             elif kind.layer == OVERHEAD:
-                overhead.append((kind.draw(*geometry, variant, **options), dest))
+                overhead.append((kind.draw(*geometry, variant, **kind.options_from(obj)), dest))
             else:
-                ground.blit(kind.draw(*geometry, variant, **options), dest)
+                ground.blit(kind.draw(*geometry, variant, **kind.options_from(obj)), dest)
 
         ground.blit(scale(shadows), (0, 0))
         if overhead:

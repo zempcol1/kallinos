@@ -9,17 +9,15 @@ import pygame
 
 import settings as s
 from game.state_machine import State
+from systems import controls
 from systems.sprites import laurel, title
 from systems.sprites.pixel_art import lerp
+from ui.effects import draw_veil, ease_out
+from ui.menu import Menu
 from ui.widgets import draw_fade_strip, draw_ornament_rules, draw_shadowed_text, font
 
 if TYPE_CHECKING:
     from game.game import Game
-
-
-def _ease_out(t: float) -> float:
-    t = max(0.0, min(1.0, t))
-    return 1 - (1 - t) ** 3
 
 
 class MainMenu(State):
@@ -31,8 +29,10 @@ class MainMenu(State):
     the intro. Choosing New Game fades to black before the game starts.
     """
 
-    MENU_OPTIONS = ["New Game", "Continue", "Quit"]
-    DISABLED = {"Continue"}            # needs save/load
+    NEW_GAME, CONTINUE, QUIT = "New Game", "Continue", "Quit"
+    MENU_OPTIONS = (NEW_GAME, CONTINUE, QUIT)
+    DISABLED = {CONTINUE}              # needs save/load
+    NEVER = -1e9                       # "long ago", for timers that have not started
     DISABLED_NOTICE = "No saved journey yet. Begin a new one!"
 
     FADE_IN_MS = 1000
@@ -49,6 +49,10 @@ class MainMenu(State):
     LOGO_Y = 92                        # logo center, screen pixels
     MENU_Y = 404
     MENU_SPACING = 42
+    FOOTER_Y = s.SCREEN_HEIGHT - 26
+    FOOTER_MARGIN = 16
+    SUBTITLE = "R I S E   O F   A   M O R T A L"
+    GREEK_NAME = "Κ  Α  Λ  Λ  Ι  Ν  Ο  Σ"
 
     # The scene is mostly still: slow drifts and the occasional visitor.
     # (y, length, speed px/ms, start x) for drifting clouds, logical pixels
@@ -64,50 +68,41 @@ class MainMenu(State):
 
     def __init__(self, game: Game) -> None:
         super().__init__(game)
-        self._selected = 0
+        self._menu = Menu(game.audio, self.MENU_OPTIONS)
         self._time = 0.0
         self._leaving_at: float | None = None
-        self._notice_at = -1e9
+        self._notice_at = self.NEVER
         self._canvas = pygame.Surface((title.WIDTH, title.HEIGHT))
         self._scaled = pygame.Surface((title.WIDTH * s.SCALE, title.HEIGHT * s.SCALE))
 
     def enter(self, params: dict | None = None) -> None:
         self.game.audio.play_music("title")
-        self._selected = 0
+        self._menu.reset()
         self._time = 0.0
         self._leaving_at = None
-        self._notice_at = -1e9
+        self._notice_at = self.NEVER
 
     # ── Input ────────────────────────────────────────────────────────────────
 
     def handle_events(self, events: list[pygame.event.Event]) -> None:
         if self._leaving_at is not None:
             return
-        for event in events:
-            if event.type != pygame.KEYDOWN:
-                continue
-            if self._time < self.MENU_DELAY_MS + self.MENU_FADE_MS:
-                self._time = self.MENU_DELAY_MS + self.MENU_FADE_MS   # skip the intro
-                continue
-            if event.key in (pygame.K_UP, pygame.K_w):
-                self._selected = (self._selected - 1) % len(self.MENU_OPTIONS)
-                self.game.audio.play("menu_move")
-            elif event.key in (pygame.K_DOWN, pygame.K_s):
-                self._selected = (self._selected + 1) % len(self.MENU_OPTIONS)
-                self.game.audio.play("menu_move")
-            elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_e):
-                self._select_option()
+        intro_ms = self.MENU_DELAY_MS + self.MENU_FADE_MS
+        for key in controls.pressed_keys(events):
+            if self._time < intro_ms:
+                self._time = intro_ms   # any key skips the intro
+            elif self._menu.handle_key(key):
+                self._select(self._menu.choice)
 
-    def _select_option(self) -> None:
-        choice = self.MENU_OPTIONS[self._selected]
+    def _select(self, choice: str) -> None:
         if choice in self.DISABLED:
             self._notice_at = self._time
             self.game.audio.play("deny")
-        elif choice == "New Game":
+        elif choice == self.NEW_GAME:
             self._leaving_at = self._time
             self.game.audio.play("menu_select")
             self.game.audio.stop_music(self.FADE_OUT_MS)
-        elif choice == "Quit":
+        elif choice == self.QUIT:
             self.game.quit()
 
     def update(self, dt: float) -> None:
@@ -172,7 +167,7 @@ class MainMenu(State):
                         alpha=190, fade_down=False)
 
         self._render_logo(surface)
-        menu_alpha = _ease_out((self._time - self.MENU_DELAY_MS) / self.MENU_FADE_MS)
+        menu_alpha = ease_out((self._time - self.MENU_DELAY_MS) / self.MENU_FADE_MS)
         if menu_alpha > 0:
             layer = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
             self._render_menu(layer)
@@ -185,13 +180,10 @@ class MainMenu(State):
             fade = 1 - self._time / self.FADE_IN_MS
         if self._leaving_at is not None:
             fade = (self._time - self._leaving_at) / self.FADE_OUT_MS
-        if fade > 0:
-            veil = pygame.Surface(surface.get_size())
-            veil.set_alpha(int(255 * min(1.0, fade)))
-            surface.blit(veil, (0, 0))
+        draw_veil(surface, 255 * min(1.0, fade))
 
     def _render_logo(self, surface: pygame.Surface) -> None:
-        progress = _ease_out((self._time - self.LOGO_DELAY_MS) / self.LOGO_DROP_MS)
+        progress = ease_out((self._time - self.LOGO_DELAY_MS) / self.LOGO_DROP_MS)
         if progress <= 0:
             return
         cx = s.SCREEN_WIDTH // 2
@@ -214,13 +206,13 @@ class MainMenu(State):
             surface.blit(band, rect)
 
         # Greek name above, subtitle with ornaments below
-        greek = font(22).render("Κ  Α  Λ  Λ  Ι  Ν  Ο  Σ", True, s.COLOR_ACCENT_GOLD)
+        greek = font(22).render(self.GREEK_NAME, True, s.COLOR_ACCENT_GOLD)
         greek.set_alpha(int(200 * progress))
         surface.blit(greek, greek.get_rect(center=(cx, rect.top - 12)))
         sub_font = font(26)
-        sub = sub_font.render("R I S E   O F   A   M O R T A L", True, s.COLOR_SAND)
+        sub = sub_font.render(self.SUBTITLE, True, s.COLOR_SAND)
         sub_rect = sub.get_rect(center=(cx, rect.bottom + 22))
-        sub_shadow = sub_font.render("R I S E   O F   A   M O R T A L", True, s.COLOR_BLACK)
+        sub_shadow = sub_font.render(self.SUBTITLE, True, s.COLOR_BLACK)
         for img, offset in ((sub_shadow, 2), (sub, 0)):
             img.set_alpha(int(255 * progress))
             surface.blit(img, sub_rect.move(offset, offset))
@@ -235,18 +227,17 @@ class MainMenu(State):
             shake = round(math.sin(since_notice / 25) * 5)
         for i, option in enumerate(self.MENU_OPTIONS):
             y = self.MENU_Y + i * self.MENU_SPACING
-            selected = i == self._selected
+            selected = i == self._menu.selected
             disabled = option in self.DISABLED
             if disabled:
-                color = (128, 124, 140)
+                color = s.COLOR_TEXT_DISABLED
             elif selected:
                 pulse = 0.5 + 0.5 * math.sin(self._time / 260)
                 color = lerp(s.COLOR_ACCENT_GOLD, s.COLOR_TITLE_GOLD, pulse)
             else:
                 color = s.COLOR_SAND
-            text = menu_font.render(option, True, color)
-            rect = text.get_rect(center=(cx + (shake if selected and disabled else 0), y))
-            draw_shadowed_text(surface, option, menu_font, rect.topleft, color)
+            x = cx + (shake if selected and disabled else 0)
+            rect = draw_shadowed_text(surface, option, menu_font, (x, y), color, anchor="center")
             if selected:
                 sway = round(math.sin(self._time / 300) * 2)
                 left, right = laurel(flip=True), laurel()
@@ -260,16 +251,10 @@ class MainMenu(State):
             surface.blit(notice, notice.get_rect(center=(cx, y)))
 
     def _render_footer(self, surface: pygame.Surface) -> None:
-        y = s.SCREEN_HEIGHT - 26
+        y, margin = self.FOOTER_Y, self.FOOTER_MARGIN
         small = font(20)
-        hint = "Up / Down  choose   ·   Enter  confirm"
-        hint_surf = small.render(hint, True, s.COLOR_TEXT_DIM)
-        draw_shadowed_text(surface, hint, small, hint_surf.get_rect(midtop=(s.SCREEN_WIDTH // 2,
-                                                                            y)).topleft,
-                           s.COLOR_TEXT_DIM)
-        draw_shadowed_text(surface, s.GAME_VERSION, small, (16, y), s.COLOR_TEXT_DIM)
-        copy = "© 2026 Kallinos"
-        copy_surf = small.render(copy, True, s.COLOR_TEXT_DIM)
-        draw_shadowed_text(surface, copy, small,
-                           copy_surf.get_rect(topright=(s.SCREEN_WIDTH - 16, y)).topleft,
-                           s.COLOR_TEXT_DIM)
+        draw_shadowed_text(surface, "Up / Down  choose   ·   Enter  confirm", small,
+                           (s.SCREEN_WIDTH // 2, y), s.COLOR_TEXT_DIM, anchor="midtop")
+        draw_shadowed_text(surface, s.GAME_VERSION, small, (margin, y), s.COLOR_TEXT_DIM)
+        draw_shadowed_text(surface, "© 2026 Kallinos", small, (s.SCREEN_WIDTH - margin, y),
+                           s.COLOR_TEXT_DIM, anchor="topright")

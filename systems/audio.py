@@ -331,8 +331,8 @@ class Audio:
 
     MUSIC_FADE_MS = 800
 
-    def __init__(self) -> None:
-        self.enabled = pygame.mixer.get_init() is not None
+    def __init__(self, enabled: bool = True) -> None:
+        self.enabled = enabled and pygame.mixer.get_init() is not None
         self.muted = False
         self._sounds: dict[str, pygame.mixer.Sound] = {}
         self._tracks: dict[str, pygame.mixer.Sound] = {}

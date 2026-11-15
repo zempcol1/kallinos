@@ -9,6 +9,8 @@ import pygame
 
 import settings as s
 from game.state_machine import State
+from systems import controls
+from ui.effects import draw_motes
 from ui.widgets import draw_ornament_rules, font
 
 if TYPE_CHECKING:
@@ -32,6 +34,8 @@ class TitleCard(State):
     RISE = 16             # title drifts up this many pixels while fading in
     MOTES = 24
     MOTE_RISE_MS = 5000
+    MOTE_SWAY = 12
+    MOTE_ALPHA = 140
 
     def __init__(self, game: Game) -> None:
         super().__init__(game)
@@ -47,11 +51,9 @@ class TitleCard(State):
     def handle_events(self, events: list[pygame.event.Event]) -> None:
         if self._timer < self.HINT_DELAY_MS:
             return
-        for event in events:
-            if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                self.game.state_machine.change(self._params["next_state"],
-                                               self._params.get("next_params"))
-                return
+        if any(key in controls.CONFIRM for key in controls.pressed_keys(events)):
+            self.game.state_machine.change(self._params["next_state"],
+                                           self._params.get("next_params"))
 
     def update(self, dt: float) -> None:
         self._timer += dt
@@ -59,7 +61,10 @@ class TitleCard(State):
     def render(self, surface: pygame.Surface) -> None:
         surface.fill(s.COLOR_BLACK)
         cx, cy = s.SCREEN_WIDTH // 2, s.SCREEN_HEIGHT // 2
-        self._render_motes(surface)
+        # Golden motes drifting up, as from Athena's olive
+        draw_motes(surface, (0, s.SCREEN_HEIGHT), (s.SCREEN_WIDTH, s.SCREEN_HEIGHT), self._timer,
+                   count=self.MOTES, rise_ms=self.MOTE_RISE_MS, sway=self.MOTE_SWAY,
+                   alpha=self.MOTE_ALPHA)
 
         fade = min(1.0, self._timer / self.TITLE_FADE_MS)
         rise = round((1 - fade) * self.RISE)
@@ -79,14 +84,3 @@ class TitleCard(State):
             hint = font(24).render("Press Enter to continue", True, s.COLOR_TEXT_DIM)
             hint.set_alpha(int(255 * pulse))
             surface.blit(hint, hint.get_rect(center=(cx, cy + 70)))
-
-    def _render_motes(self, surface: pygame.Surface) -> None:
-        """Golden motes drifting up, as from Athena's olive."""
-        mote = pygame.Surface((s.SCALE, s.SCALE))
-        mote.fill(s.COLOR_TITLE_GOLD)
-        for i in range(self.MOTES):
-            life = (self._timer / self.MOTE_RISE_MS + i / self.MOTES) % 1.0
-            x = (i * 0.618 % 1.0) * s.SCREEN_WIDTH + math.sin(life * math.tau + i) * 12
-            y = s.SCREEN_HEIGHT * (1 - life)
-            mote.set_alpha(int(math.sin(life * math.pi) * 140))
-            surface.blit(mote, (round(x), round(y)))

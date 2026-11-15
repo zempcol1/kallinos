@@ -25,15 +25,25 @@ python build_exe.py
 The game is written to `dist/Kallinos.exe`; copy it anywhere and double-click.
 Rebuild after changing the game.
 
+## Tests
+
+```bash
+pip install pytest
+pytest
+```
+
+The suite plays the tutorial without a window, checks the combat rules and
+makes sure every data file and sprite loads.
+
 ## Controls
 
-| Key           | Action                       |
-|---------------|------------------------------|
-| WASD / Arrows | Move (also diagonally), navigate menus |
-| E / Enter     | Interact, advance dialogue   |
-| Enter / Space | Confirm                      |
-| ESC           | Back to main menu            |
-| M             | Sound on / off               |
+| Key               | Action                                 |
+|-------------------|----------------------------------------|
+| WASD / Arrows     | Move (also diagonally), navigate menus |
+| E / Enter         | Interact                               |
+| Enter / Space / E | Confirm, advance dialogue              |
+| ESC               | Back to main menu                      |
+| M                 | Sound on / off                         |
 
 ## What's playable
 

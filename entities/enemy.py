@@ -2,22 +2,13 @@
 
 from __future__ import annotations
 
-import json
-import os
-
-import settings as s
-
-
-def load_enemy_db() -> dict[str, dict]:
-    """Load all enemies from enemies.json into a dict keyed by id."""
-    path = os.path.join(s.DATA_DIR, "enemies.json")
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    return {e["id"]: e for e in data["enemies"]}
-
 
 class Enemy:
-    """An enemy combatant, instantiated from data."""
+    """An enemy combatant, built from one entry of enemies.json.
+
+    Besides the stats, an entry can carry the enemy's own flavour:
+    ``attack_text``, ``defeat_text`` and ``attack_sound`` (an effect name).
+    """
 
     def __init__(self, data: dict) -> None:
         self.id: str = data["id"]
@@ -28,3 +19,6 @@ class Enemy:
         self.attack: int = data["attack"]
         self.defense: int = data["defense"]
         self.xp_reward: int = data.get("xp_reward", 0)
+        self.attack_text: str = data.get("attack_text", f"{self.name} attacks!")
+        self.defeat_text: str = data.get("defeat_text", f"{self.name} is defeated!")
+        self.attack_sound: str | None = data.get("attack_sound")

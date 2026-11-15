@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import pygame
 
 import settings as s
 from game.state_machine import State
+from systems import controls
 from systems.sprites import Look, continue_arrow, portrait
-from ui.widgets import draw_panel, font, wrap_text
+from ui.widgets import draw_panel, draw_shadowed_text, font, wrap_text
 
 if TYPE_CHECKING:
     from game.game import Game
@@ -22,8 +24,8 @@ class Dialogue(State):
     Push with params:
         {
             "lines": [("Speaker", "Line of text"), ...],   # "" speaker = narration
-            "on_complete": str | None,   # optional callback event name
-            "looks": {speaker: Look},    # optional, shows that speaker's portrait
+            "on_complete": callable | None,   # called after the box has closed
+            "looks": {speaker: Look},         # optional, shows that speaker's portrait
         }
 
     Text types out letter by letter; the first key press finishes the line,
@@ -39,17 +41,18 @@ class Dialogue(State):
     BLINK_MS = 140
     ARROW_BOB_MS = 250
     NARRATION_COLOR = s.COLOR_SAND
+    NAME_TAB_FILL = (28, 22, 40, 245)
     BLIP_EVERY = 3          # letters per text blip
     VOICES = ("blip", "blip_low", "blip_high")
+    NARRATION_VOICE = "blip_soft"
     ADVANCE_VOLUME = 0.6
-    PORTRAIT_BG = (44, 36, 54)
 
     def __init__(self, game: Game) -> None:
         super().__init__(game)
         self._lines: list[tuple[str, str]] = []
         self._looks: dict[str, Look] = {}
         self._index = 0
-        self._on_complete: str | None = None
+        self._on_complete: Callable[[], None] | None = None
         self._shown = 0.0       # characters revealed of the current line
         self._timer = 0.0
 
@@ -63,6 +66,10 @@ class Dialogue(State):
         self._timer = 0.0
 
     @property
+    def _done(self) -> bool:
+        return self._index >= len(self._lines)
+
+    @property
     def _text(self) -> str:
         return self._lines[self._index][1]
 
@@ -71,13 +78,11 @@ class Dialogue(State):
         return self._shown < len(self._text)
 
     def handle_events(self, events: list[pygame.event.Event]) -> None:
-        if self._index >= len(self._lines):
+        if self._done:
             self._finish()   # nothing to show
             return
-        for event in events:
-            if event.type != pygame.KEYDOWN:
-                continue
-            if event.key not in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_e):
+        for key in controls.pressed_keys(events):
+            if key not in controls.CONFIRM:
                 continue
             if self._typing:
                 self._shown = len(self._text)
@@ -85,29 +90,26 @@ class Dialogue(State):
             self.game.audio.play("menu_move", self.ADVANCE_VOLUME)
             self._index += 1
             self._shown = 0.0
-            if self._index >= len(self._lines):
+            if self._done:
                 self._finish()
                 return
 
     def _voice(self) -> str:
         speaker = self._lines[self._index][0]
         if not speaker:
-            return "blip_soft"
+            return self.NARRATION_VOICE
         return self.VOICES[sum(map(ord, speaker)) % len(self.VOICES)]
 
     def _finish(self) -> None:
-        """Pop this state and optionally signal an event."""
-        callback = self._on_complete
+        """Close the box, then tell whoever opened it."""
+        on_complete = self._on_complete
         self.game.state_machine.pop()
-        # If there's a callback, tell the exploration state
-        if callback:
-            current = self.game.state_machine.current
-            if hasattr(current, "on_dialogue_complete"):
-                current.on_dialogue_complete(callback)
+        if on_complete:
+            on_complete()
 
     def update(self, dt: float) -> None:
         self._timer += dt
-        if self._lines and self._index < len(self._lines) and self._typing:
+        if not self._done and self._typing:
             before = int(self._shown)
             self._shown = min(len(self._text), self._shown + dt * s.TEXT_SPEED_CPS / 1000)
             after = int(self._shown)
@@ -120,7 +122,7 @@ class Dialogue(State):
 
     def render(self, surface: pygame.Surface) -> None:
         # Don't clear — draw on top of the state below
-        if not self._lines or self._index >= len(self._lines):
+        if self._done:
             return
         speaker, text = self._lines[self._index]
         box = pygame.Rect(self.MARGIN, s.SCREEN_HEIGHT - self.BOX_HEIGHT - self.MARGIN,
@@ -142,9 +144,7 @@ class Dialogue(State):
             visible = line[:max(0, remaining)]
             remaining -= len(line) + 1   # +1 for the space the wrap swallowed
             if visible:
-                shadow = text_font.render(visible, True, s.COLOR_BLACK)
-                surface.blit(shadow, (text_x + text_font.scale, y + text_font.scale))
-                surface.blit(text_font.render(visible, True, color), (text_x, y))
+                draw_shadowed_text(surface, visible, text_font, (text_x, y), color)
             y += text_font.get_linesize()
 
         if not self._typing:
@@ -157,7 +157,7 @@ class Dialogue(State):
         """Framed bust at the left of the box; returns the frame's right edge."""
         frame = pygame.Rect(0, 0, self.PORTRAIT_FRAME, self.PORTRAIT_FRAME)
         frame.midleft = (box.x + 18, box.centery)
-        pygame.draw.rect(surface, self.PORTRAIT_BG, frame)
+        pygame.draw.rect(surface, s.COLOR_PORTRAIT_BG, frame)
         talking = self._typing and int(self._timer // self.MOUTH_MS) % 2 == 1
         blinking = self._timer % self.BLINK_EVERY_MS < self.BLINK_MS
         bust = portrait(look, talking, blinking)
@@ -165,10 +165,10 @@ class Dialogue(State):
         pygame.draw.rect(surface, s.COLOR_ACCENT_GOLD, frame, 2)
         return frame.right
 
-    @staticmethod
-    def _draw_name_tab(surface: pygame.Surface, name: str, midleft: tuple[int, int]) -> None:
+    def _draw_name_tab(self, surface: pygame.Surface, name: str,
+                       midleft: tuple[int, int]) -> None:
         name_surf = font(30).render(name, True, s.COLOR_TITLE_GOLD)
         tab = name_surf.get_rect().inflate(28, 12)
         tab.midleft = midleft
-        draw_panel(surface, tab, fill=(28, 22, 40, 245))
+        draw_panel(surface, tab, fill=self.NAME_TAB_FILL)
         surface.blit(name_surf, name_surf.get_rect(center=tab.center))

@@ -73,17 +73,16 @@ class StateMachine:
 
     def pop(self) -> None:
         """Pop the current state, calling its exit(), and resume the one below."""
+        self._remove_top()
         if self._stack:
-            self._stack[-1].exit()
-            self._stack.pop()
-            if self._stack:
-                self._stack[-1].resume()
+            self._stack[-1].resume()
 
     def change(self, name: str, params: dict | None = None) -> None:
-        """Replace the current state: pop, then push the new one."""
+        """Replace the current state with a new one (the state below is not resumed)."""
+        self._remove_top()
+        self.push(name, params)
+
+    def _remove_top(self) -> None:
         if self._stack:
             self._stack[-1].exit()
             self._stack.pop()
-        state = self._states[name]
-        self._stack.append(state)
-        state.enter(params)

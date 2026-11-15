@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pygame
 
 import settings as s
 from systems.sprites import ObjectType, silhouette
+
+if TYPE_CHECKING:
+    from entities.player import Player
+    from states.exploration import Exploration
 
 
 class Prop:
@@ -20,9 +26,11 @@ class Prop:
     SEE_THROUGH_ALPHA = 140
     GLOW_ALPHA = 160              # strongest golden glow (scripts set ``glow`` 0–1)
     REACH = (int(s.SCALED_TILE * 1.4), s.SCALED_TILE)   # interaction margin (x, y)
+    PROMPT_LIFT = s.SCALED_TILE * 5 // 4                # prompt bubble height above the base
 
     def __init__(self, data: dict, kind: ObjectType, rect: pygame.Rect,
-                 footprints: list[pygame.Rect], links: tuple[bool, ...] | None = None) -> None:
+                 footprints: list[pygame.Rect], geometry: tuple) -> None:
+        """``geometry`` is what the type's generator takes first: (w, h), or (links,) if tiled."""
         self.id: str | None = data.get("id")
         self.type: str = data["type"]
         self.rect = rect
@@ -36,10 +44,9 @@ class Prop:
         self.glow_color: tuple = s.COLOR_TITLE_GOLD
 
         self._kind = kind
-        self._args = (links,) if kind.tiled else (data["w"], data["h"])
-        self._variant: int = data.get("variant", 0)
-        self._options = {key: data[key] for key in kind.options if key in data}
-        self._sprite = kind.draw(*self._args, self._variant, **self._options)
+        self._draw_args = (*geometry, data.get("variant", 0))
+        self._options = kind.options_from(data)
+        self._sprite = kind.draw(*self._draw_args, **self._options)
         self._faded_sprite: pygame.Surface | None = None
 
     @property
@@ -55,13 +62,28 @@ class Prop:
         if not self.can_harvest:
             return None
         self.harvested = True
-        self._sprite = self._kind.draw(*self._args, self._variant, ripe=False, **self._options)
+        self._sprite = self._kind.draw(*self._draw_args, ripe=False, **self._options)
         self._faded_sprite = None
         return self.harvest
 
     def interaction_rect(self) -> pygame.Rect:
         base = self.footprints[0].unionall(self.footprints[1:]) if self.footprints else self.rect
         return base.inflate(*self.REACH)
+
+    # ── Interactable (harvestable props only) ────────────────────────────────
+
+    def in_reach(self, player: Player) -> bool:
+        return self.can_harvest and player.reach_rect().colliderect(self.interaction_rect())
+
+    @property
+    def prompt_anchor(self) -> tuple[int, int]:
+        return self.interaction_rect().centerx, self.depth - self.PROMPT_LIFT
+
+    def interact(self, scene: Exploration) -> None:
+        item_data = scene.give_item(self.pick())
+        if item_data:
+            scene.show_toast(self.harvest_text or f"Picked {item_data['name']}")
+            scene.game.audio.play("harvest")
 
     def update_fade(self, sprite_rect: pygame.Rect, feet_y: int) -> None:
         """Fade if the given character stands behind this prop and is hidden by it."""

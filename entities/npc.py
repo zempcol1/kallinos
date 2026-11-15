@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
 
 import pygame
 
 import settings as s
 from entities.character import Character
 from systems.sprites import Look
+
+if TYPE_CHECKING:
+    from entities.player import Player
+    from states.exploration import Exploration
 
 
 class NPC(Character):
@@ -18,6 +23,8 @@ class NPC(Character):
     """
 
     WALK_SPEED = s.PLAYER_SPEED * 0.8   # pixels per second
+    _LOOK_COLORS = ("hair", "skin", "trim")               # map JSON keys copied into the Look
+    _LOOK_STYLES = ("hair_style", "bearded", "face")
 
     def __init__(self, npc_id: str, name: str, tile_x: int, tile_y: int,
                  look: Look, dialogue_idle: list[str] | None = None) -> None:
@@ -30,16 +37,10 @@ class NPC(Character):
 
     @classmethod
     def from_data(cls, data: dict) -> NPC:
-        """Build an NPC from a map JSON entry."""
-        look = Look(
-            tunic=tuple(data["color"]),
-            hair=tuple(data.get("hair", (70, 48, 30))),
-            skin=tuple(data.get("skin", (226, 186, 146))),
-            trim=tuple(data["trim"]) if "trim" in data else None,
-            hair_style=data.get("hair_style", "short"),
-            bearded=data.get("bearded", False),
-            face=data.get("face", "plain"),
-        )
+        """Build an NPC from a map JSON entry; keys it leaves out use ``Look``'s defaults."""
+        colors = {key: tuple(data[key]) for key in cls._LOOK_COLORS if key in data}
+        styles = {key: data[key] for key in cls._LOOK_STYLES if key in data}
+        look = Look(tunic=tuple(data["color"]), **colors, **styles)
         return cls(data["id"], data["name"], data["x"], data["y"], look,
                    data.get("dialogue_idle", []))
 
@@ -70,6 +71,20 @@ class NPC(Character):
     def interaction_rect(self) -> pygame.Rect:
         """The feet box grown by half a tile: talk from any side."""
         return self.rect.inflate(s.SCALED_TILE // 2, s.SCALED_TILE // 2)
+
+    # ── Interactable (people with something to say) ──────────────────────────
+
+    def in_reach(self, player: Player) -> bool:
+        return (self.visible and bool(self.dialogue_idle)
+                and player.reach_rect().colliderect(self.interaction_rect()))
+
+    @property
+    def prompt_anchor(self) -> tuple[int, int]:
+        return self.sprite_rect.midtop
+
+    def interact(self, scene: Exploration) -> None:
+        self.face_towards(scene.player.x, scene.player.y)
+        scene.push_dialogue([(self.name, line) for line in self.dialogue_idle])
 
     def render(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
         if self.visible:
